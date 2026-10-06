@@ -164,7 +164,7 @@
 </head>
 <body>
   <h1>簡易ボリューム検討ツール<span class="ver">整形地版・天空率</span></h1>
-  <div class="byline">株式会社スカイリブ環境計画　<span class="vstamp">版 2026-10-07 00:05 天空率β3（間口を絞る）</span></div>
+  <div class="byline">株式会社スカイリブ環境計画　<span class="vstamp">版 2026-10-07 01:30 天空率β5（令132条）</span></div>
   <div id="errBanner" style="display:none;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:0.75rem;word-break:break-all"></div>
   <script>window.__errs=[];window.addEventListener("error",function(e){var b=document.getElementById("errBanner");if(!b)return;window.__errs.push((e.message||"読み込み失敗")+(e.filename?" ("+String(e.filename).split("/").pop()+":"+e.lineno+":"+e.colno+")":""));b.style.display="block";b.innerHTML="エラー一覧（古い順）:<br>"+window.__errs.map(function(t,k){return (k+1)+". "+t.replace(/</g,"&lt;");}).join("<br>");});window.addEventListener("load",function(){if(!window.__appLoaded){var b=document.getElementById("errBanner");b.style.display="block";b.innerHTML+=(b.innerHTML?"<br>":"")+"本体のプログラムが最後まで実行されていません。";}});</script>
 
@@ -380,7 +380,7 @@
   </details>
 
   <details class="shade" id="skyBox">
-    <summary>天空率の検討（道路斜線・手前の道路）</summary>
+    <summary>天空率の検討（道路斜線・複数の道路に対応）</summary>
     <label class="chk"><input type="checkbox" id="skyOn"> 天空率で検討する（オンにすると、下の計画建築物で結果全体を計算します）</label>
     <div class="shade-grid">
       <label>階数（空欄＝容積率・絶対高さの範囲で最大）<input type="number" id="skyN" step="1" min="1" placeholder="自動"></label>
@@ -388,6 +388,13 @@
       <label>上階を道路側から後退する：○階以上<input type="number" id="skyK" step="1" min="2" placeholder="なし"></label>
       <label>後退する距離 m<input type="number" id="skyB" step="0.1" min="0" placeholder="0"></label>
     </div>
+    <div style="font-size:0.8rem;margin:6px 0;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center">天空率を使う道路（道路がある辺のみ有効）：
+      <label class="chk"><input type="checkbox" id="skyUse_front" checked> 手前</label>
+      <label class="chk"><input type="checkbox" id="skyUse_left" checked> 左</label>
+      <label class="chk"><input type="checkbox" id="skyUse_right" checked> 右</label>
+      <label class="chk"><input type="checkbox" id="skyUse_rear" checked> 奥</label>
+    </div>
+    <label class="chk" style="font-size:0.8rem;margin:2px 0"><input type="checkbox" id="sky132" checked> 令132条の緩和（幅員の広い道路による、狭い道路の斜線の緩和）を考慮する</label>
     <div class="hint">天空率を使うと、道路斜線を超える形でも、斜線ぎりぎりの建物（適合建築物）と同じ以上の空が見えれば建てられます。計画建築物は、建築面積（建ぺい率・建物の幅と奥行）の範囲の四角い形で、上階だけ道路側を後退できます。北側・高度・隣地斜線は緩和されないので、超えると警告が出ます。</div>
   </details>
 
@@ -2346,13 +2353,16 @@
         const z1 = Math.min(b.z1, zLim);
         if (z1 > b.z0 + 1e-6) planSolids.push(skyBoxPlanes({ x0: b.x0, x1: b.x1, z0: b.z0, z1: z1, y0: b.y0, y1: b.y1 }));
       });
-      const fz1 = Math.min(o.fp.z1, zLim);
-      const c = o.yE + o.s * (o.wEff + o.g);
-      const fitSolid = fz1 > o.fp.z0 + 1e-6 ? [
-        [1, 0, 0, o.fp.x1], [-1, 0, 0, -o.fp.x0], [0, 0, 1, fz1], [0, 0, -1, -o.fp.z0],
-        [0, -1, 0, 0], [0, 1, 0, capH], [0, 1, -o.s, c]
-      ] : null;
-      const fitSolids = fitSolid ? [fitSolid] : [];
+      // 適合建築物：幅員が一様な範囲（セル）ごとの斜線の下の形。令132条の緩和があるときは、セルごとに有効幅員が変わる
+      const cells = o.cells && o.cells.length ? o.cells : [{ x0: o.fp.x0, x1: o.fp.x1, z0: o.fp.z0, z1: o.fp.z1, w: o.wEff }];
+      const fitSolids = [], pieces = [];
+      cells.forEach(function (cl) {
+        const z1 = Math.min(cl.z1, zLim);
+        if (!(z1 > cl.z0 + 1e-6)) return;
+        const c = o.yE + o.s * (cl.w + o.g);
+        pieces.push({ x0: cl.x0, x1: cl.x1, z0: cl.z0, z1: z1, c: c, w: cl.w });
+        fitSolids.push([[1, 0, 0, cl.x1], [-1, 0, 0, -cl.x0], [0, 0, 1, z1], [0, 0, -1, -cl.z0], [0, -1, 0, 0], [0, 1, 0, capH], [0, 1, -o.s, c]]);
+      });
       const n = Math.max(1, Math.ceil(o.W / Math.max(0.5, o.roadW / 2) - 1e-9));
       const pts = [];
       for (let i = 0; i < n; i++) {
@@ -2365,7 +2375,7 @@
       let worst = 0;
       pts.forEach(function (p, i) { if (p.diff < pts[worst].diff) worst = i; });
       return { pts: pts, ok: pts.every(function (p) { return p.ok; }), worst: worst, n: n, zLim: zLim, capH: capH, yE: o.yE,
-               planSolids: planSolids, fitSolids: fitSolids, fitGeom: { fp: o.fp, z1: fz1, c: c, s: o.s, capH: capH } };
+               planSolids: planSolids, fitSolids: fitSolids, fitGeom: { pieces: pieces, s: o.s, capH: capH } };
     }
     // 計画建築物：各階の平面。上階（K階以上）は道路側をB m後退できる
     function skyBuildPlan(o) {
@@ -2545,15 +2555,114 @@
       document.querySelectorAll('.shadebtn').forEach(function (b) { b.disabled = true; b.textContent = '計算中…'; });
       setTimeout(function () { skyFitPending = true; calculate(); }, 40);
     }
+    // 令132条の緩和：幅員の広い道路（最大幅員）の影響を受ける範囲では、狭い道路側の斜線も広い道路の幅員で見る（有効幅員）
+    function skyReliefCtx(roads, W, D) {
+      let wMax = 0, parkMax = 0;
+      roads.forEach(function (r) { wMax = Math.max(wMax, r.width); });
+      roads.forEach(function (r) { if (r.width >= wMax - 1e-9) parkMax = Math.max(parkMax, r.park || 0); });
+      return { roads: roads, W: W, D: D, wMax: wMax, parkMax: parkMax, band: Math.min(wMax * 2, 35), multi: roads.length > 1 };
+    }
+    function skyDistSide(side, x, z, W, D) {
+      if (side === 'front') return z;
+      if (side === 'rear') return D - z;
+      if (side === 'left') return x + W / 2;
+      return W / 2 - x;
+    }
+    function skyEffW(rc, R, xw, zw) {
+      const own = R.width + (R.park || 0);
+      if (!rc.multi || R.width >= rc.wMax - 1e-9) return own;
+      const inBand = rc.roads.some(function (Rw) { return Rw.width >= rc.wMax - 1e-9 && skyDistSide(Rw.side, xw, zw, rc.W, rc.D) <= rc.band + 1e-9; });
+      const ten = Math.max(0, 10 - R.width / 2);
+      return (inBand || skyDistSide(R.side, xw, zw, rc.W, rc.D) > ten + 1e-9) ? Math.max(own, rc.wMax + rc.parkMax) : own;
+    }
+    // 世界座標の切れ目（x=c または z=c）を、道路ごとの座標系（X:道路沿い、Z:道路から敷地へ）に直す
+    function skyCutLocal(side, axis, c, W, D) {
+      if (side === 'front') return axis === 'x' ? { axis: 'X', v: c } : { axis: 'Z', v: c };
+      if (side === 'rear') return axis === 'x' ? { axis: 'X', v: -c } : { axis: 'Z', v: D - c };
+      if (side === 'left') return axis === 'x' ? { axis: 'Z', v: c + W / 2 } : { axis: 'X', v: c - D / 2 };
+      return axis === 'x' ? { axis: 'Z', v: W / 2 - c } : { axis: 'X', v: c - D / 2 };
+    }
+    // rect（道路の座標系）を、有効幅員が一様なセルに分ける
+    function skyCells(rc, R, mp, rect) {
+      const Xs = [rect.x0, rect.x1], Zs = [rect.z0, rect.z1];
+      if (rc.multi && R.width < rc.wMax - 1e-9) {
+        Zs.push(Math.max(0, 10 - R.width / 2));
+        rc.roads.forEach(function (Rw) {
+          if (Rw.width < rc.wMax - 1e-9) return;
+          let ax, c;
+          if (Rw.side === 'front') { ax = 'z'; c = rc.band; } else if (Rw.side === 'rear') { ax = 'z'; c = rc.D - rc.band; }
+          else if (Rw.side === 'left') { ax = 'x'; c = -rc.W / 2 + rc.band; } else { ax = 'x'; c = rc.W / 2 - rc.band; }
+          const loc = skyCutLocal(R.side, ax, c, rc.W, rc.D);
+          (loc.axis === 'X' ? Xs : Zs).push(loc.v);
+        });
+      }
+      const uniq = function (a, lo, hi) {
+        return a.filter(function (v) { return v >= lo - 1e-9 && v <= hi + 1e-9; }).sort(function (p, q) { return p - q; })
+          .filter(function (v, k, arr) { return k === 0 || v - arr[k - 1] > 1e-6; });
+      };
+      const X = uniq(Xs, rect.x0, rect.x1), Z = uniq(Zs, rect.z0, rect.z1);
+      const cells = [];
+      for (let i = 0; i + 1 < X.length; i++) for (let j = 0; j + 1 < Z.length; j++) {
+        const w = mp.w((X[i] + X[i + 1]) / 2, (Z[j] + Z[j + 1]) / 2);
+        cells.push({ x0: X[i], x1: X[i + 1], z0: Z[j], z1: Z[j + 1], w: skyEffW(rc, R, w[0], w[1]) });
+      }
+      return cells;
+    }
+    // 道路ごとの座標系：道路を手前(Z<0)、敷地を奥(Z>0)、道路沿いを X として、天空率の計算を使い回す
+    function skyRoadMap(side, W, D) {
+      const bx = function (b, f) { const o = f(b); o.y0 = b.y0 || 0; o.y1 = b.y1 || 0; return o; };
+      if (side === 'rear') return { len: W, box: function (b) { return bx(b, function (q) { return { x0: -q.x1, x1: -q.x0, z0: D - q.z1, z1: D - q.z0 }; }); }, w: function (X, Z) { return [-X, D - Z]; } };
+      if (side === 'left') return { len: D, box: function (b) { return bx(b, function (q) { return { x0: q.z0 - D / 2, x1: q.z1 - D / 2, z0: q.x0 + W / 2, z1: q.x1 + W / 2 }; }); }, w: function (X, Z) { return [Z - W / 2, X + D / 2]; } };
+      if (side === 'right') return { len: D, box: function (b) { return bx(b, function (q) { return { x0: q.z0 - D / 2, x1: q.z1 - D / 2, z0: W / 2 - q.x1, z1: W / 2 - q.x0 }; }); }, w: function (X, Z) { return [W / 2 - Z, X + D / 2]; } };
+      return { len: W, box: function (b) { return bx(b, function (q) { return { x0: q.x0, x1: q.x1, z0: q.z0, z1: q.z1 }; }); }, w: function (X, Z) { return [X, Z]; } };
+    }
+    // 全ての道路について判定。road.useSky の道路は天空率、そうでない道路は斜線の内側に収まっているかを確認する
+    // o: boxes, floor1(1階の矩形), W, D, roads[{side,width,park,level,setback,name,useSky}], L, s, capMode, absH, quick, stop
+    function skyRoadsCheck(o) {
+      const out = [], bads = [];
+      let ok = true, margin = Infinity;
+      const rc = o.relief ? skyReliefCtx(o.roads, o.W, o.D) : null;
+      for (let i = 0; i < o.roads.length; i++) {
+        const road = o.roads[i], mp = skyRoadMap(road.side, o.W, o.D), wEff = road.width + road.park, yE = levelEff(road.level);
+        const lb = o.boxes.map(mp.box);
+        if (road.useSky) {
+          const f1 = mp.box(o.floor1);
+          const cells = rc ? skyCells(rc, road, mp, { x0: f1.x0, x1: f1.x1, z0: f1.z0, z1: f1.z1 }) : null;
+          const res = skyCheck({ W: mp.len, roadW: road.width, wEff: wEff, g: road.setback, s: o.s, yE: yE, L: o.L, boxes: lb, cells: cells,
+            fp: { x0: f1.x0, x1: f1.x1, z0: f1.z0, z1: f1.z1 }, capMode: o.capMode, absH: o.absH, quick: o.quick });
+          res.road = road; res.map = mp; res.useSky = true; res.wEff = wEff;
+          out.push(res);
+          margin = Math.min(margin, res.pts[res.worst].diff);
+          if (!res.ok) { ok = false; bads.push(road.name); if (o.stop) return { ok: false, roads: out, bads: bads, margin: -1 }; }
+        } else {
+          const zLim = o.L != null ? o.L - wEff : Infinity;
+          let sOk = true;
+          const perp = (road.side === 'front' || road.side === 'rear') ? o.D : o.W;
+          const cells = rc ? skyCells(rc, road, mp, { x0: -mp.len / 2, x1: mp.len / 2, z0: 0, z1: perp }) : [{ x0: -mp.len / 2, x1: mp.len / 2, z0: 0, z1: perp, w: wEff }];
+          lb.forEach(function (b) {
+            cells.forEach(function (cl) {
+              if (!(b.x0 < cl.x1 - 1e-9 && b.x1 > cl.x0 + 1e-9 && b.z0 < cl.z1 - 1e-9 && b.z1 > cl.z0 + 1e-9)) return;
+              const zz = Math.max(b.z0, cl.z0);
+              if (zz < zLim - 1e-9 && b.y1 > yE + o.s * (zz + cl.w + road.setback) + 1e-6) sOk = false;
+            });
+          });
+          out.push({ road: road, useSky: false, slopeOk: sOk, map: mp, wEff: wEff, yE: yE });
+          if (!sOk) { ok = false; bads.push(road.name + '（斜線）'); if (o.stop) return { ok: false, roads: out, bads: bads, margin: -1 }; }
+        }
+      }
+      return { ok: ok, roads: out, bads: bads, margin: isFinite(margin) ? margin : 0 };
+    }
     let currentSky = null;
     let skyLast = null;
-    function skyDrawDiagram(idx) {
+    function skyUsed() { return skyLast ? skyLast.R.roads.filter(function (r) { return r.useSky; }) : []; }
+    function skyDrawDiagram(ri, pi) {
       const cv = document.getElementById('skyCanvas');
-      if (!cv || !skyLast) return;
-      const res = skyLast.res, p = res.pts[idx];
+      const r = skyUsed()[ri];
+      if (!cv || !r) return;
+      const p = r.pts[pi];
       const S = cv.width, R = S / 2 - 6, ctx = cv.getContext('2d');
       const img = ctx.createImageData(S, S);
-      const P = [p.x, res.yE, -skyLast.wEff];
+      const P = [p.x, r.yE, -r.wEff];
       for (let py = 0; py < S; py++) for (let px = 0; px < S; px++) {
         const dx = (px + 0.5 - S / 2) / R, dz = (S / 2 - py - 0.5) / R, r2 = dx * dx + dz * dz;
         const o = (py * S + px) * 4;
@@ -2561,7 +2670,7 @@
         let a = false, b = false;
         if (dz > 0) {
           const d = [dx, Math.sqrt(1 - r2), dz];
-          a = skyBlocked(P, d, res.planSolids); b = skyBlocked(P, d, res.fitSolids);
+          a = skyBlocked(P, d, r.planSolids); b = skyBlocked(P, d, r.fitSolids);
         }
         const col = a && b ? [148, 163, 184] : a ? [239, 68, 68] : b ? [56, 189, 248] : [255, 255, 255];
         img.data[o] = col[0]; img.data[o + 1] = col[1]; img.data[o + 2] = col[2]; img.data[o + 3] = 255;
@@ -2574,74 +2683,105 @@
       ctx.fillStyle = '#334155'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
       ctx.fillText('敷地側 ↑', S / 2, 11);
     }
-    function skySelectPoint(i) { skyDrawDiagram(parseInt(i, 10) || 0); }
-    function skyRender(res, info) {
-      skyLast = { res: res, wEff: info.wEff };
+    function skyFillPts(ri) {
+      const r = skyUsed()[ri], sel = document.getElementById('skyPt');
+      if (!r || !sel) return;
+      sel.innerHTML = r.pts.map(function (p, i) { return '<option value="' + i + '">' + (i + 1) + '（位置 ' + p.x.toFixed(2) + 'm）' + (i === r.worst ? '・差が最小' : '') + '</option>'; }).join('');
+      sel.value = String(r.worst);
+    }
+    function skySelectRoad() {
+      const ri = parseInt(document.getElementById('skyRd').value, 10) || 0;
+      skyFillPts(ri);
+      skyDrawDiagram(ri, skyUsed()[ri].worst);
+    }
+    function skySelectPoint() {
+      skyDrawDiagram(parseInt(document.getElementById('skyRd').value, 10) || 0, parseInt(document.getElementById('skyPt').value, 10) || 0);
+    }
+    function skyRender(R, info) {
+      skyLast = { R: R };
       const pc = function (v) { return (Math.round(v * 10000) / 100).toFixed(2) + '%'; };
-      let h = '<div class="shadecard"><div class="shade-sum ' + (res.ok && !info.otherBad.length ? 'ok' : 'ng') + '">天空率（道路斜線）：' +
-        (res.ok ? '全ての測定点で適合' : 'NG（' + res.pts.filter(function (p) { return !p.ok; }).length + '／' + res.n + '点で不足）') + '</div>';
+      const used = skyUsed();
+      const okAll = R.ok && !info.otherBad.length;
+      let h = '<div class="shadecard"><div class="shade-sum ' + (okAll ? 'ok' : 'ng') + '">天空率（道路斜線）：' + (R.ok ? '全ての道路で適合' : 'NG（' + R.bads.join('・') + '）') + '</div>';
       if (info.otherBad.length) h += '<div class="shade-out">⚠ 計画建築物は、' + info.otherBad.join('・') + 'の面を超えています（天空率で緩和できるのは、緩和を使う斜線だけです）。</div>';
       if (info.absOver) h += '<div class="shade-out">⚠ 計画建築物の高さ ' + info.Hp.toFixed(2) + 'm が絶対高さ ' + info.absH + 'm を超えています。</div>';
       if (info.farOver) h += '<div class="shade-out">⚠ 計画建築物の延床面積 ' + info.total.toFixed(1) + '㎡ が、容積率の上限 ' + info.maxTotal.toFixed(1) + '㎡ を超えています。</div>';
       h += '<div class="shade-note" style="margin-top:0">計画建築物：' + info.planText + '</div>';
       if (info.fitNote) h += '<div class="shade-fit"><div class="shade-note" style="color:#1e3a8a;font-weight:600">' + info.fitNote + '</div></div>';
       h += '<div class="shade-fit"><button type="button" class="shadebtn" onclick="skyFitRun()">天空率が成立する最大ボリュームを探す（逆算）</button></div>';
-      h += '<table class="ftable shadetbl"><thead><tr><th>測定点</th><th>x位置</th><th>計画</th><th>適合建築物</th><th>差（計画−適合）</th><th>判定</th></tr></thead><tbody>';
-      res.pts.forEach(function (p, i) {
-        h += '<tr' + (i === res.worst ? ' style="background:#f8fafc"' : '') + '><td>' + (i + 1) + '</td><td class="num">' + p.x.toFixed(2) + 'm</td><td class="num">' + pc(p.plan) + '</td><td class="num">' + pc(p.fit) + '</td><td class="num" style="color:' + (p.ok ? '#166534' : '#991b1b') + '">' + (p.diff >= 0 ? '+' : '') + (Math.round(p.diff * 10000) / 100).toFixed(2) + 'pt</td><td>' + (p.ok ? '○' : '×') + '</td></tr>';
+      R.roads.forEach(function (r) {
+        const nm = r.road.name + '（幅員 ' + r.road.width + 'm' + (r.road.park ? '＋公園等' + r.road.park + 'm' : '') + '）';
+        if (!r.useSky) {
+          h += '<div class="shade-note" style="margin:6px 0"><b>' + nm + '</b>：天空率は使わず、道路斜線の内側か確認 → <b style="color:' + (r.slopeOk ? '#166534' : '#991b1b') + '">' + (r.slopeOk ? '斜線内に収まっています' : '斜線を超えています') + '</b></div>';
+          return;
+        }
+        h += '<details' + (r.ok ? '' : ' open') + ' style="margin:6px 0"><summary style="cursor:pointer;font-weight:600;color:' + (r.ok ? '#166534' : '#991b1b') + '">' + nm + '：' + (r.ok ? '適合' : 'NG') + '（' + r.n + '点）</summary>';
+        h += '<table class="ftable shadetbl"><thead><tr><th>測定点</th><th>位置</th><th>計画</th><th>適合建築物</th><th>差（計画−適合）</th><th>判定</th></tr></thead><tbody>';
+        r.pts.forEach(function (p, i) {
+          h += '<tr' + (i === r.worst ? ' style="background:#f8fafc"' : '') + '><td>' + (i + 1) + '</td><td class="num">' + p.x.toFixed(2) + 'm</td><td class="num">' + pc(p.plan) + '</td><td class="num">' + pc(p.fit) + '</td><td class="num" style="color:' + (p.ok ? '#166534' : '#991b1b') + '">' + (p.diff >= 0 ? '+' : '') + (Math.round(p.diff * 10000) / 100).toFixed(2) + 'pt</td><td>' + (p.ok ? '○' : '×') + '</td></tr>';
+        });
+        h += '</tbody></table></details>';
       });
-      h += '</tbody></table>';
-      h += '<div style="margin-top:10px"><label style="font-size:0.78rem;color:#475569">天空図を見る測定点　<select id="skyPt" onchange="skySelectPoint(this.value)">' +
-        res.pts.map(function (p, i) { return '<option value="' + i + '"' + (i === res.worst ? ' selected' : '') + '>' + (i + 1) + '（x=' + p.x.toFixed(2) + 'm）' + (i === res.worst ? '・差が最小' : '') + '</option>'; }).join('') + '</select></label></div>';
-      h += '<canvas id="skyCanvas" width="260" height="260" style="display:block;margin:6px auto;max-width:100%"></canvas>';
-      h += '<div class="shade-legend"><span><i style="background:#94a3b8"></i>どちらも隠す</span><span><i style="background:#ef4444"></i>計画だけが隠す（不利）</span><span><i style="background:#38bdf8"></i>適合建築物だけが隠す（有利）</span><span><i style="background:#fff;border:1px solid #cbd5e1"></i>空</span></div>';
+      if (used.length) {
+        let wi = 0;
+        used.forEach(function (r, i) { if (r.pts[r.worst].diff < used[wi].pts[used[wi].worst].diff) wi = i; });
+        h += '<div style="margin-top:10px;font-size:0.78rem;color:#475569">天空図を見る：<select id="skyRd" onchange="skySelectRoad()">' +
+          used.map(function (r, i) { return '<option value="' + i + '"' + (i === wi ? ' selected' : '') + '>' + r.road.name + '</option>'; }).join('') +
+          '</select> の測定点 <select id="skyPt" onchange="skySelectPoint()"></select></div>';
+        h += '<canvas id="skyCanvas" width="260" height="260" style="display:block;margin:6px auto;max-width:100%"></canvas>';
+        h += '<div class="shade-legend"><span><i style="background:#94a3b8"></i>どちらも隠す</span><span><i style="background:#ef4444"></i>計画だけが隠す（不利）</span><span><i style="background:#38bdf8"></i>適合建築物だけが隠す（有利）</span><span><i style="background:#fff;border:1px solid #cbd5e1"></i>空</span></div>';
+      }
       h += '<div class="shade-note">算定の前提（簡易）：<br>' +
-        '・測定点は、道路の反対側の境界線上（路面中心の高さ ' + res.yE.toFixed(2) + 'm）に、間隔が道路幅員の1/2以下になるよう敷地の間口を均等に分けて、各区間の中央に置いています（' + res.n + '点）。<br>' +
+        '・測定点は、各道路の反対側の境界線上（路面中心の高さ）に、間隔が道路幅員の1/2以下になるよう、その道路に面する敷地の間口を均等に分けて、各区間の中央に置いています。<br>' +
         '・天空率は正射影の天空図（円の面積に対する空の割合）で、計画建築物・適合建築物とも、道路斜線の適用距離内（反対側境界から ' + (info.L != null ? info.L + 'm' : '制限なし') + '）の部分だけを対象にしています。<br>' +
-        '・適合建築物は、計画建築物の1階と同じ平面（後退距離 ' + info.g.toFixed(2) + 'm）で、道路斜線（勾配 ' + info.s + '）の下に収まる形です。高さの上限は' + (info.capMode === 'slope' ? '斜線どおり（絶対高さがあればそこまで）' : '計画建築物の最高高さ（安全側）') + 'としています。<br>' +
-        '・手前の道路のみを検討しています。他の道路（左右・奥）の道路斜線は、斜線内に収まっているか別に確認してください。<br>' +
+        '・適合建築物は、計画建築物の1階と同じ平面で、その道路の斜線（勾配 ' + info.s + '、後退距離はその道路側の入力値）の下に収まる形です。高さの上限は' + (info.capMode === 'slope' ? '斜線どおり（絶対高さがあればそこまで）' : '計画建築物の最高高さ（安全側）') + 'としています。道路ごとに別々に比べます。<br>' +
+        (info.relief ? '・令132条の緩和（幅員の広い道路による、狭い道路の斜線の緩和）を、通常のボリューム計算と同じ考え方で適合建築物に反映しています（広い道路の幅員の2倍かつ35m以内、または他の道路の中心から10m超の範囲では、広い道路の幅員で斜線を見ます）。<br>' : '・令132条の緩和は考慮していません。幅員が違う道路がある場合は、狭い道路側が厳しめ（NGが出やすい側）の判定になります。<br>') +
         '・実際の申請では、測定点の取り方や適合建築物の定義、計算書の様式を審査機関に確認してください。</div></div>';
       document.getElementById('skyResult').innerHTML = h;
-      skyDrawDiagram(res.worst);
+      if (used.length) { const sel = document.getElementById('skyRd'); skyFillPts(parseInt(sel.value, 10) || 0); skySelectRoad(); }
     }
 
-    // 3D：適合建築物（斜線の下の形）を半透明で、測定点を印で重ねる
+    // 3D：適合建築物（斜線の下の形）を半透明で、測定点を印で重ねる（天空率を使う道路ごと）
     function skyOverlay3D(sk) {
-      try {
-        const G = sk.res.fitGeom, c = G.c, s = G.s, capH = G.capH;
-        const z0 = G.fp.z0, z1 = G.z1, x0 = G.fp.x0, x1 = G.fp.x1;
-        if (z1 > z0 + 1e-6) {
-          const hz = function (z) { return Math.max(0, Math.min(capH, c + s * z)); };
-          const poly = [[z0, 0], [z1, 0], [z1, hz(z1)]];
-          const h0 = hz(z0), h1 = hz(z1);
-          if (h0 < capH - 1e-6 && h1 > capH + 1e-6 || (c + s * z0 < capH && c + s * z1 > capH)) poly.push([(capH - c) / s, capH]);
-          poly.push([z0, h0]);
-          const pos = [];
-          const tri = function (a, b, d) { pos.push(a[0], a[1], a[2], b[0], b[1], b[2], d[0], d[1], d[2]); };
-          const V = function (x, p) { return [x, p[1], p[0]]; };
-          for (let i = 0; i < poly.length; i++) {
-            const a = poly[i], b = poly[(i + 1) % poly.length];
-            tri(V(x0, a), V(x1, a), V(x1, b)); tri(V(x0, a), V(x1, b), V(x0, b));
-          }
-          for (let i = 1; i + 1 < poly.length; i++) {
-            tri(V(x0, poly[0]), V(x0, poly[i]), V(x0, poly[i + 1]));
-            tri(V(x1, poly[0]), V(x1, poly[i]), V(x1, poly[i + 1]));
-          }
-          const geo = new THREE.BufferGeometry();
-          geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-          geo.computeVertexNormals();
-          group.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false })));
-          const lm = new THREE.LineBasicMaterial({ color: 0x059669 });
-          [x0, x1].forEach(function (x) {
-            group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(poly.concat([poly[0]]).map(function (p) { return new THREE.Vector3(x, p[1], p[0]); })), lm));
+      sk.roads.filter(function (r) { return r.useSky; }).forEach(function (r) {
+        try {
+          const G = r.fitGeom, s = G.s, capH = G.capH;
+          G.pieces.forEach(function (pc) {
+            const c = pc.c, z0 = pc.z0, z1 = pc.z1, x0 = pc.x0, x1 = pc.x1;
+            if (!(z1 > z0 + 1e-6)) return;
+            const hz = function (z) { return Math.max(0, Math.min(capH, c + s * z)); };
+            const poly = [[z0, 0], [z1, 0], [z1, hz(z1)]];
+            const h0 = hz(z0);
+            if (c + s * z0 < capH && c + s * z1 > capH) poly.push([(capH - c) / s, capH]);
+            poly.push([z0, h0]);
+            const pos = [];
+            const tri = function (a, b, d) { pos.push(a[0], a[1], a[2], b[0], b[1], b[2], d[0], d[1], d[2]); };
+            const V = function (X, p) { const w = r.map.w(X, p[0]); return [w[0], p[1], w[1]]; };
+            for (let i = 0; i < poly.length; i++) {
+              const a = poly[i], b = poly[(i + 1) % poly.length];
+              tri(V(x0, a), V(x1, a), V(x1, b)); tri(V(x0, a), V(x1, b), V(x0, b));
+            }
+            for (let i = 1; i + 1 < poly.length; i++) {
+              tri(V(x0, poly[0]), V(x0, poly[i]), V(x0, poly[i + 1]));
+              tri(V(x1, poly[0]), V(x1, poly[i]), V(x1, poly[i + 1]));
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            geo.computeVertexNormals();
+            group.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false })));
+            const lm = new THREE.LineBasicMaterial({ color: 0x059669 });
+            [x0, x1].forEach(function (X) {
+              group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(poly.concat([poly[0]]).map(function (p) { const q = V(X, p); return new THREE.Vector3(q[0], q[1], q[2]); })), lm));
+            });
           });
-        }
-        sk.res.pts.forEach(function (p) {
-          const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshBasicMaterial({ color: p.ok ? 0x16a34a : 0xdc2626 }));
-          m.position.set(p.x, sk.res.yE + 0.3, -sk.wEff);
-          group.add(m);
-        });
-      } catch (err) { console.error(err); }
+          r.pts.forEach(function (p) {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshBasicMaterial({ color: p.ok ? 0x16a34a : 0xdc2626 }));
+            const w = r.map.w(p.x, -r.wEff);
+            m.position.set(w[0], r.yE + 0.3, w[1]);
+            group.add(m);
+          });
+        } catch (err) { console.error(err); }
+      });
     }
 
     function calculate() {
@@ -2868,6 +3008,10 @@
         const slopeTotal = floors.reduce(function (t, f) { return t + f.area; }, 0);
         const slopeFloors = floors.map(function (f) { return { floor: f.floor, rects: f.rects.map(function (r) { return Object.assign({}, r); }), area: f.area }; });
         const skyFitReq = skyFitPending; skyFitPending = false;
+        const skyRoads = [{ side: 'front', width: road, park: currentPark, level: roadLevel, setback: setback, name: '手前の道路' }].concat(extras.map(function (e) {
+          return { side: e.side, width: e.width, park: e.park, level: e.level, setback: e.setback, name: sideName(e.side) + 'の道路' };
+        }));
+        skyRoads.forEach(function (r) { const cb = document.getElementById('skyUse_' + r.side); r.useSky = !cb || cb.checked; });
         if (document.getElementById('skyOn').checked) {
           if (skyFitReq) {
             skyCustom = null;
@@ -2880,10 +3024,8 @@
               const tot = plf.reduce(function (t, f) { return t + f.area; }, 0);
               if (tot > maxTotalFloor + 0.05 || (absHeight !== null && Hp0 > absHeight + 1e-6)) return { valid: false, total: tot };
               if (skyOtherLimits(bx).length) return { valid: false, total: tot };
-              const f1 = plf[0].rects[0];
-              const rs = skyCheck({ W: siteW, roadW: road, wEff: road + currentPark, g: setback, s: slope, yE: levelEff(roadLevel), L: currentApplyDist, boxes: bx,
-                fp: { x0: f1.x0, x1: f1.x1, z0: f1.z0, z1: f1.z1 }, capMode: capSel, absH: absHeight, quick: quick });
-              return { valid: rs.ok, total: tot, margin: Math.min.apply(null, rs.pts.map(function (q) { return q.diff; })) };
+              const rs = skyRoadsCheck({ boxes: bx, floor1: plf[0].rects[0], W: siteW, D: siteD, roads: skyRoads, L: currentApplyDist, s: slope, capMode: capSel, absH: absHeight, quick: quick, stop: true, relief: document.getElementById('sky132').checked });
+              return { valid: rs.ok, total: tot, margin: rs.margin };
             };
             const mkFloors = function (base, st) {
               const out = [];
@@ -3003,19 +3145,16 @@
           try {
             const boxes = skyBoxesOf(floors, fl1, floorH);
             const Hp = Math.max.apply(null, boxes.map(function (b) { return b.y1; }));
-            const wEff = road + currentPark;
-            const yE = levelEff(roadLevel);
-            const res = skyCheck({ W: siteW, roadW: road, wEff: wEff, g: setback, s: slope, yE: yE, L: currentApplyDist, boxes: boxes,
-              fp: { x0: floors[0].rects[0].x0, x1: floors[0].rects[0].x1, z0: floors[0].rects[0].z0, z1: floors[0].rects[0].z1 }, capMode: document.getElementById('skyCap').value, absH: absHeight });
+            const res = skyRoadsCheck({ boxes: boxes, floor1: floors[0].rects[0], W: siteW, D: siteD, roads: skyRoads, L: currentApplyDist, s: slope, capMode: document.getElementById('skyCap').value, absH: absHeight, relief: document.getElementById('sky132').checked });
             const total = floors.reduce(function (t, f) { return t + f.area; }, 0);
             const bad = skyOtherLimits(boxes);
             const planText = floors.length + '階建て（高さ ' + Hp.toFixed(1) + 'm）、1階 ' + floors[0].area.toFixed(1) + '㎡、延床 ' + total.toFixed(1) + '㎡' +
               (skyPlan.custom ? '。各階の道路側の位置（道路境界から）：' + floors.map(function (f) { return f.floor + 'F ' + f.rects[0].z0.toFixed(1) + 'm'; }).join('／') + '。各階の間口：' + floors.map(function (f) { return f.floor + 'F ' + (f.rects[0].x1 - f.rects[0].x0).toFixed(1) + 'm'; }).join('／') : (skyPlan.K ? '。' + skyPlan.K + '階以上は道路側を ' + skyPlan.B.toFixed(1) + 'm 後退' : '') + (skyPlan.manual ? '' : '（階数は自動）'));
-            currentSky = { res: res, wEff: wEff, g: setback, yE: yE };
+            currentSky = res;
             skyLast = null;
             skyRender(res, { otherBad: bad, absOver: absHeight !== null && Hp > absHeight + 1e-6, absH: absHeight, Hp: Hp, farOver: total > maxTotalFloor + 0.05, total: total, maxTotal: maxTotalFloor,
-              planText: planText, fitNote: skyFitNote, slopeTotal: slopeTotal, wEff: wEff, L: currentApplyDist, g: setback, s: slope, capMode: document.getElementById('skyCap').value });
-            document.getElementById('summary').insertAdjacentHTML('beforeend', tile('天空率（道路斜線）', res.ok && !bad.length ? '適合' : 'NG', res.ok ? '全' + res.n + '測定点で適合' : res.pts.filter(function (p) { return !p.ok; }).length + '／' + res.n + '点で不足'));
+              planText: planText, fitNote: skyFitNote, slopeTotal: slopeTotal, L: currentApplyDist, s: slope, capMode: document.getElementById('skyCap').value, relief: document.getElementById('sky132').checked });
+            document.getElementById('summary').insertAdjacentHTML('beforeend', tile('天空率（道路斜線）', res.ok && !bad.length ? '適合' : 'NG', res.ok ? res.roads.length + '道路とも適合' : res.bads.join('・')));
           } catch (err) { console.error(err); document.getElementById('skyResult').innerHTML = '<div class="warn">天空率の計算でエラー: ' + err.message + '</div>'; }
         }
 
@@ -3067,7 +3206,7 @@
     document.getElementById('zoning').addEventListener('change', ShadeLib.shadePreset);
     ShadeLib.shadeCityInit();
     document.getElementById('stairMode').addEventListener('change', function () { if (lastUpd3D) { try { lastUpd3D(); snap3D(); } catch (e) { console.error(e); } } });
-    ['skyN', 'skyK', 'skyB', 'skyCap', 'skyOn'].forEach(function (id) { document.getElementById(id).addEventListener('input', function () { skyCustom = null; }); document.getElementById(id).addEventListener('change', function () { skyCustom = null; }); });
+    ['skyN', 'skyK', 'skyB', 'skyCap', 'skyOn', 'skyUse_front', 'skyUse_left', 'skyUse_right', 'skyUse_rear', 'sky132'].forEach(function (id) { document.getElementById(id).addEventListener('input', function () { skyCustom = null; }); document.getElementById(id).addEventListener('change', function () { skyCustom = null; }); });
       window.__appLoaded = true;
   </script>
 </body>
