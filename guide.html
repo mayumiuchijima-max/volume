@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>使い方｜簡易ボリューム検討ツール</title>
+  <link rel="icon" type="image/png" href="icon-top-64.png">
+  <link rel="apple-touch-icon" href="icon-top.png">
+  <meta name="apple-mobile-web-app-title" content="ボリューム検討">
+  <meta name="theme-color" content="#f5f5f5">
+  <style>
+    :root { --bg:#f5f5f5; --card:#fff; --ink:#1e293b; --sub:#64748b; --line:#e2e8f0; --acc:#2563eb; }
+    * { box-sizing: border-box; }
+    body { font-family: sans-serif; max-width: 680px; margin: 20px auto; padding: 16px; background: var(--bg); color: var(--ink); line-height: 1.75; font-size: 0.93rem; }
+    h1 { font-size: 1.3rem; margin: 6px 0 4px; }
+    h2 { font-size: 1.05rem; margin: 28px 0 8px; padding-left: 8px; border-left: 4px solid var(--acc); }
+    h3 { font-size: 0.95rem; margin: 16px 0 4px; }
+    a { color: var(--acc); }
+    .top { font-size: 0.8rem; }
+    .toc { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font-size: 0.85rem; }
+    .toc a { display: inline-block; margin-right: 12px; }
+    .box { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 8px 0; }
+    .warn { background: #fffbeb; border-color: #fde68a; }
+    ol, ul { padding-left: 1.3em; margin: 6px 0; }
+    li { margin: 3px 0; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.82rem; background: var(--card); }
+    th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+    th { background: #f1f5f9; }
+    .legend i { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --sub:#94a3b8; --line:#334155; --acc:#60a5fa; } th { background:#273449; } .warn { background:#3a2f12; border-color:#7c5e10; } }
+  </style>
+</head>
+<body>
+  <div class="top"><a href="index.html">← ツール一覧へ</a></div>
+  <h1>使い方</h1>
+  <div class="toc">
+    <a href="#basic">基本の流れ</a><a href="#roads">複数の道路</a><a href="#view">3Dの見方</a><a href="#sky">天空率</a><a href="#fav">お気に入り登録</a><a href="#caution">ご注意</a>
+  </div>
+
+  <h2 id="basic">基本の流れ（共通）</h2>
+  <ol>
+    <li><b>用途地域・建ぺい率・容積率</b>を選ぶ／入力する（用途地域を選ぶと、斜線の種類や勾配が自動で入ります）。</li>
+    <li><b>敷地</b>を入れる。整形地版は間口（幅）と奥行、変形地版は図の操作または座標入力で形を作ります。</li>
+    <li><b>道路</b>の幅員・向き・高低差・向こう側の公園などを入れる。</li>
+    <li>必要に応じて、高度地区・絶対高さ・建物の幅と奥行・階高・日影の条件を入れる。</li>
+    <li>「計算」を押すと、延床面積・階数・各階の平面と、3Dのボリュームが表示されます。</li>
+  </ol>
+  <div class="box">結果の下の「適用した規制の内容」で、どの斜線や緩和が使われたかを確認できます。入力を変えたら、もう一度「計算」を押してください。</div>
+
+  <h2 id="roads">複数の道路（角地・二方・三方）</h2>
+  <ul>
+    <li>手前の道路のほかに、左・右・奥の辺を道路にできます（辺の入力欄で道路を追加）。</li>
+    <li>幅員が違う道路があるときは、令132条の緩和（広い道路による狭い道路の斜線の緩和）を自動で反映します。</li>
+    <li>道路になった辺には、隣地斜線はかかりません。</li>
+  </ul>
+
+  <h2 id="view">3Dと斜線の見方</h2>
+  <ul>
+    <li>斜線の面に沿って斜めにカットした形が標準です。<b>「階段状」</b>に切り替えると、階ごとの箱で表示します（ボリューム模型のような見え方）。</li>
+    <li>容積率ぎりぎりで床面積を削る階は、最上階の奥側が削られます。</li>
+    <li>階数や面積の上限は、道路斜線・北側斜線・高度斜線・隣地斜線・絶対高さ・容積率・建ぺい率のうち、いちばん厳しいものが効きます。</li>
+  </ul>
+
+  <h2 id="sky">天空率（整形地版・天空率）</h2>
+  <p>天空率は、斜線ぎりぎりの建物（適合建築物）と同じ以上の空が見えれば、斜線を超える形も認められる考え方です。「天空率の検討」を開いて、「天空率で検討する」をオンにして使います。</p>
+  <h3>使い方</h3>
+  <ol>
+    <li>「天空率で検討する」にチェックを入れ、「計算」を押す。</li>
+    <li>天空率を使う道路を選ぶ（手前・左・右・奥）。使わない道路は、通常の斜線の内側かどうかで判定します。</li>
+    <li>隣地側にも使いたい場合は、「隣地斜線も天空率で」にチェックを入れる。</li>
+    <li>階数・上階の後退（○階以上を○m後退）を手入力するか、空欄にして自動にする。</li>
+    <li><b>「天空率が成立する最大ボリュームを探す（逆算）」</b>を押すと、延床面積が最大になる各階の形を自動で探します。数十秒かかることがあります。</li>
+  </ol>
+  <h3>結果の見方</h3>
+  <ul>
+    <li>道路や隣地ごとに、測定点ごとの「計画」「適合建築物」の天空率と、その差を表示します。差がプラスなら適合です。</li>
+    <li>天空図：<span class="legend"><i style="background:#94a3b8"></i>どちらも隠す　<i style="background:#ef4444"></i>計画だけが隠す（不利）　<i style="background:#38bdf8"></i>適合建築物だけが隠す（有利）　<i style="background:#fff;border:1px solid #cbd5e1"></i>空</span></li>
+    <li>3Dでは、緑の半透明が適合建築物、小さな箱が測定点（緑＝適合、赤＝不適合）です。</li>
+  </ul>
+  <div class="box warn"><b>天空率で緩和できない規制：</b>北側斜線・高度斜線、そして天空率に切り替えていない斜線は、計画建築物がその面を超えると警告が出ます。<br>逆算の結果と、斜線どおりの結果を見比べて、天空率でどれだけ増えたかを確認してください（低層では差が出ないことも多く、高層・中高層で効きやすい傾向です）。</div>
+  <div class="box"><b>うまくいかないときは：</b>警告が出た場合は、いったん天空率のチェックを外して計算し、原因の規制を確認してから、もう一度チェックを入れて計算し直すと整理しやすくなります。</div>
+
+  <h2 id="fav">お気に入り・ホーム画面に追加</h2>
+  <p>各ツールのページに専用のアイコンを付けています。ホーム画面に追加すると、4種類を見分けられます。</p>
+  <table>
+    <tr><th>アイコン</th><th>ページ</th></tr>
+    <tr><td>グレーの空・太陽・ビルが混在</td><td>トップ（ツール一覧）</td></tr>
+    <tr><td>青い空・四角いビル・太陽なし</td><td>整形地版</td></tr>
+    <tr><td>青緑の空・四角いビル・太陽あり</td><td>整形地版・天空率</td></tr>
+    <tr><td>夕焼けの空・形のいろいろなビル・太陽なし</td><td>変形地版</td></tr>
+    <tr><td>紫の空・形のいろいろなビル・太陽あり</td><td>変形地版・天空率（準備中）</td></tr>
+  </table>
+  <ul>
+    <li><b>iPhone（Safari）：</b>共有ボタン →「ホーム画面に追加」</li>
+    <li><b>Android（Chrome）：</b>メニュー →「ホーム画面に追加」</li>
+    <li>以前に追加済みのものは、古いアイコンのままのことがあります。いったん削除して追加し直してください。</li>
+  </ul>
+
+  <h2 id="caution">ご注意</h2>
+  <ul>
+    <li>結果は簡易的な目安です。測定点の取り方、適合建築物の定義、緩和の適用などは、役所・審査機関によって扱いが異なることがあります。申請前に必ず確認してください。</li>
+    <li>計算はお使いのブラウザの中で行われます。</li>
+  </ul>
+  <p><a href="index.html">← ツール一覧へ</a></p>
+</body>
+</html>

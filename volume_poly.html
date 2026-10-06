@@ -1,0 +1,2582 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>簡易ボリューム検討ツール（変形地版）</title>
+  <!--ICONS-->
+  <link rel="icon" type="image/png" href="icon-poly-64.png">
+  <link rel="apple-touch-icon" href="icon-poly.png">
+  <meta name="apple-mobile-web-app-title" content="ボリューム 変形地">
+  <meta name="application-name" content="ボリューム 変形地">
+  <meta name="theme-color" content="#f5f5f5">
+  <!--/ICONS-->
+  <style>
+    body { font-family: sans-serif; max-width: 680px; margin: 20px auto; padding: 16px; background: #f5f5f5; color: #333; }
+    h1 { font-size: 1.3rem; margin-bottom: 16px; }
+    .form-group { margin-bottom: 12px; }
+    label { display: block; font-size: 0.9rem; margin-bottom: 4px; font-weight: 500; }
+    input, select { width: 100%; padding: 10px; font-size: 1rem; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; }
+    button.calc { width: 100%; padding: 14px; font-size: 1.05rem; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 8px; font-weight: bold; }
+    .board { background: white; border-radius: 12px; padding: 12px; margin: 12px 0; }
+    .dim { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; }
+    .dim input { padding: 6px; font-size: 0.85rem; }
+    .dim-w { justify-content: center; margin: 4px 0; }
+    .dim-w input { width: 110px; }
+    .board-mid { display: flex; gap: 8px; }
+    
+    /* 敷地グリッド構成 */
+    .site-plan { display: grid; grid-template-columns: 105px minmax(0, 1fr) 105px; grid-template-rows: auto minmax(320px, auto) auto; gap: 6px; width: 100%; margin: 0; }
+    
+    /* 敷地水色ボックスとセットバック配置 */
+    .site-box { 
+      grid-column: 2; grid-row: 2; 
+      background: #dbeafe; border: 2px solid #1e40af; 
+      position: relative; min-height: 320px; padding: 28px 24px; 
+      box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 8px; 
+    }
+
+    /* 各辺の中央にセットバック入力欄を配置 */
+    .sb-input { position: absolute; background: rgba(255, 255, 255, 0.9); border: 1px solid #1e40af; border-radius: 4px; padding: 2px 4px; display: flex; flex-direction: column; align-items: center; z-index: 10; }
+    .sb-input span { font-size: 0.65rem; font-weight: bold; color: #1e3a8a; white-space: nowrap; }
+    .sb-input input { width: 45px; padding: 2px 4px; font-size: 0.75rem; text-align: center; height: 24px; border: 1px solid #93c5fd; }
+
+    .sb-top { top: 4px; left: 50%; transform: translateX(-50%); }
+    .sb-bottom { bottom: 4px; left: 50%; transform: translateX(-50%); }
+    .sb-left { left: 4px; top: 50%; transform: translateY(-50%); }
+    .sb-right { right: 4px; top: 50%; transform: translateY(-50%); }
+
+    /* 中央に凝縮配置する建物ボックス */
+    .bldg-box { 
+      width: 100%; max-width: 112px; 
+      border: 1px dashed #1d4ed8; background: rgba(255,255,255,0.95); 
+      display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 8px; 
+      box-sizing: border-box; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    .bldg-box label, .mini { display: block; font-size: 0.68rem; color: #1e3a8a; line-height: 1.1; font-weight: 600; }
+    .bldg-box input, .mini input { width: 100%; padding: 4px; font-size: 0.8rem; color: #111; box-sizing: border-box; margin-top: 1px; height: 26px; }
+
+    /* 方位エッジパネル */
+    .edge { border: 1px solid #94a3b8; background: #f8fafc; border-radius: 6px; font-size: 0.75rem; padding: 6px 4px; color: #1e3a8a; text-align: center; cursor: pointer; transition: all 0.2s; }
+    .edge.on { background: #374151; color: white; border-color: #1f2937; }
+    .edge-top { grid-column: 2; grid-row: 1; }
+    .edge-left { grid-column: 1; grid-row: 2; }
+    .edge-right { grid-column: 3; grid-row: 2; }
+    .edge-left, .edge-right { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+    .edge-bottom { grid-column: 2; grid-row: 3; background: #4b5563; color: white; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 8px; cursor: default; }
+    .edge-bottom .mini { color: #fff; }
+    .ename { font-weight: 700; display: block; font-size: 0.85rem; }
+    .esub { display: block; font-size: 0.65rem; font-weight: 500; margin-bottom: 2px; }
+
+    /* 2本目道路設定入力 */
+    .road2-inputs { display: none; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 4px; text-align: left; width: 100%; }
+    .edge.on .road2-inputs { display: block; }
+    .esub-note { font-size: 0.7rem; color: #64748b; margin-top: 4px; }
+    .road2-inputs label { font-size: 0.65rem; color: #f3f4f6; margin-bottom: 2px; display: block; }
+    .road2-inputs input { width: 100%; padding: 4px; font-size: 0.8rem; background: #fff; color: #111; margin-bottom: 3px; box-sizing: border-box; border-radius: 4px; }
+
+    .req:placeholder-shown { border-color: #dc2626 !important; background: #fef2f2 !important; }
+    .req::placeholder { color: #dc2626; font-weight: 700; opacity: 1; }
+    /* 狭い画面（スマホ）では左右の枠を細くして、左離れ・右離れの入力欄が建物ボックスと重ならないようにする */
+    @media (max-width: 520px) {
+      .site-plan { grid-template-columns: 58px minmax(0, 1fr) 58px; }
+      .site-box { padding: 28px 62px; }
+      .edge-left .esub, .edge-right .esub { font-size: 0.58rem; }
+    }
+    .hint { font-size: 0.68rem; color: #64748b; text-align: center; margin: 2px 0 6px; }
+    #result { margin-top: 24px; padding: 20px; background: white; border-radius: 10px; display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 10px; }
+    .tile { background: #f1f5f9; border-radius: 10px; padding: 10px 12px; }
+    .tile .tl { font-size: 0.72rem; color: #64748b; }
+    .tile .tv { font-size: 1.3rem; font-weight: 700; color: #1e3a8a; line-height: 1.2; }
+    .tile .tv small { font-size: 0.8rem; font-weight: 500; margin-left: 2px; }
+    .tile .ts { font-size: 0.68rem; color: #64748b; margin-top: 2px; line-height: 1.35; }
+    .ftable { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .ftable th { text-align: left; font-size: 0.72rem; color: #64748b; font-weight: 500; border-bottom: 1px solid #cbd5e1; padding: 4px 6px; }
+    .ftable td { padding: 6px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    .ftable td.num { text-align: right; white-space: nowrap; font-weight: 600; }
+    .ftable tr.total td { border-top: 2px solid #94a3b8; border-bottom: none; font-weight: 700; }
+    
+    .plans { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-top: 12px; }
+    .plan { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px; }
+    .plan .pt { font-size: 0.72rem; font-weight: 600; margin-bottom: 2px; color: #1e3a8a; text-align: center; }
+    
+    details.rules { margin-top: 16px; font-size: 0.85rem; }
+    details.rules summary { cursor: pointer; font-weight: 600; color: #1e3a8a; padding: 6px 0; }
+    details.rules .result-item { font-size: 0.8rem; margin-bottom: 4px; }
+    .note { font-size: 0.75rem; color: #666; margin-top: 16px; line-height: 1.4; }
+    #canvas-container { width: 100%; height: 320px; margin-top: 16px; background: #e8eef7; border-radius: 8px; overflow: hidden; position: relative; }
+    .compass { width: 80px; height: 80px; position: relative; touch-action: none; user-select: none; }
+    .compass-face { width: 80px; height: 80px; border-radius: 50%; background: radial-gradient(circle at 50% 45%, #fff, #dbe7f5 70%, #c5d4ea); border: 2px solid #1e3a8a; position: relative; }
+    .north-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .compass-name { position: absolute; font-size: 10px; font-weight: 700; color: #1e3a8a; transform: translate(-50%, -50%); }
+    .compass-needle { position: absolute; left: 50%; top: 50%; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 30px solid #dc2626; margin-left: -5px; margin-top: -30px; transform-origin: 50% 100%; pointer-events: none; z-index: 3; }
+    .compass-hub { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #1e3a8a; z-index: 5; }
+    .compass-caption { text-align: center; font-size: 0.85rem; }
+    .deg-row { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 0.78rem; margin: 4px 0 0; }
+    .deg-row input { width: 64px; padding: 4px 6px; font-size: 0.85rem; }
+    input[type=text] { width: 100%; padding: 10px; font-size: 1rem; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
+    .view3d-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; font-size: 0.72rem; color: #64748b; }
+    .stairtog input { width: auto; margin: 0; }
+    .stairtog { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; color: #1e3a8a; font-weight: 600; }
+    .view3d-bar button { padding: 6px 10px; font-size: 0.78rem; border: 1px solid #1e3a8a; background: #fff; color: #1e3a8a; border-radius: 8px; cursor: pointer; }
+    .pdfbtn { width: 100%; padding: 10px; font-size: 0.9rem; background: #fff; color: #1e3a8a; border: 1px solid #1e3a8a; border-radius: 8px; cursor: pointer; margin-bottom: 10px; font-weight: bold; }
+    #printHeader, #printFooter, #print3d { display: none; }
+    @media print {
+      @page { size: A4; margin: 12mm 12mm 20mm; @bottom-center { content: "株式会社スカイリブ環境計画"; font-size: 9pt; color: #475569; font-family: sans-serif; } }
+      body { background: #fff; padding: 0; max-width: none; }
+      body > *:not(#printHeader):not(#printFooter):not(#result):not(script) { display: none !important; }
+      .pdfbtn, .view3d-bar, #canvas-container canvas { display: none !important; }
+      #printHeader { display: block; margin-bottom: 8px; }
+      .ph-title { font-size: 1.3rem; font-weight: bold; border-bottom: 2px solid #1e3a8a; padding-bottom: 4px; margin-bottom: 6px; color: #1e3a8a; }
+      .ph-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+      .ph-table th { width: 14%; background: #f1f5f9; text-align: left; padding: 3px 6px; border: 1px solid #cbd5e1; }
+      .ph-table td { padding: 3px 6px; border: 1px solid #cbd5e1; }
+      #printFooter { display: none; }
+      #print3d { display: block; width: 100%; height: 100%; object-fit: contain; }
+      #canvas-container { height: 95mm !important; background: none; break-inside: avoid; }
+      .plan, .tile, table.ftable tr { break-inside: avoid; }
+    }
+    h1 .ver { display: inline-block; margin-left: 8px; padding: 2px 8px; font-size: 0.7rem; font-weight: 600; color: #1e3a8a; background: #dbeafe; border-radius: 999px; vertical-align: middle; }
+    .vstamp { color: #94a3b8; letter-spacing: 0; margin-left: 6px; }
+    .byline { margin: -6px 0 10px; font-size: 0.72rem; letter-spacing: 0.08em; color: #64748b; }
+    .sitefoot { margin: 18px 0 8px; padding-top: 10px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 0.72rem; color: #94a3b8; }
+    @media print { #errBanner, .byline, .sitefoot { display: none !important; } }
+    details.shade { margin: 10px 0; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; background: #fff; }
+    details.shade summary { cursor: pointer; font-weight: 600; color: #1e3a8a; padding: 4px 0; }
+    .chk { display: flex; gap: 8px; align-items: center; margin: 6px 0; font-size: 0.85rem; }
+    .chk input { width: auto; }
+    #shadeResult { margin-top: 12px; }
+    .shadecard { padding: 8px; break-inside: avoid; }
+    .shade-sum { font-weight: 700; text-align: center; padding: 6px; border-radius: 6px; margin-bottom: 6px; font-size: 0.9rem; }
+    .shade-sum.ok { background: #dcfce7; color: #166534; }
+    .shade-sum.ng { background: #fee2e2; color: #991b1b; }
+    .shade-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.68rem; color: #475569; margin: 6px 0; }
+    .shade-legend i { display: inline-block; width: 12px; height: 10px; vertical-align: middle; margin-right: 4px; }
+    .shade-note { font-size: 0.7rem; color: #64748b; line-height: 1.6; margin-top: 6px; }
+    .shadetbl { margin-top: 4px; }
+    .shadecard .warn { font-size: 0.78rem; margin-top: 6px; }
+    .shade-fit { margin: 8px 0; }
+    .shadebtn { width: 100%; padding: 10px 12px; font-size: 0.85rem; font-weight: 600; border: 1px solid #1e3a8a; background: #1e3a8a; color: #fff; border-radius: 8px; cursor: pointer; }
+    .shadebtn.sub { background: #fff; color: #1e3a8a; }
+    @media print { .shade-fit .shadebtn { display: none !important; } }
+
+    .shade-out { color: #b91c1c; font-weight: 700; font-size: 0.85rem; line-height: 1.5; background: #fef2f2; border: 1px solid #fca5a5; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+    .shade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0; }
+    details.shade .hint { text-align: left; font-size: 0.72rem; }
+    details.shade select, details.shade input[type=number] { font-size: 0.9rem; padding: 8px; }
+    .chk input { width: auto; }
+    @media print { .shadebtn { display: none !important; } }
+    .shape-title { font-size: 0.8rem; font-weight: 700; color: #1e3a8a; margin: 10px 0 4px; }
+    .dim-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .dim-row label { flex: 1 1 110px; font-size: 0.72rem; color: #1e3a8a; font-weight: 600; }
+    .dim-row input { width: 100%; padding: 6px; font-size: 0.9rem; box-sizing: border-box; margin-top: 2px; }
+    .ebtns { display: flex; gap: 8px; margin: 8px 0; }
+    .ebtns button, .subbtn, .tdel { padding: 8px 10px; font-size: 0.8rem; border: 1px solid #1e3a8a; background: #fff; color: #1e3a8a; border-radius: 8px; cursor: pointer; }
+    .ebtns button:disabled { opacity: 0.4; cursor: default; }
+    .coords { margin: 8px 0; font-size: 0.8rem; }
+    .coords summary { cursor: pointer; font-weight: 700; color: #1e3a8a; }
+    .ctable { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 0.78rem; }
+    .ctable th, .ctable td { border: 1px solid #e2e8f0; padding: 3px 4px; text-align: center; }
+    .ctable input { width: 80px; padding: 3px; font-size: 0.8rem; }
+    .ctable td.ro { color: #475569; font-variant-numeric: tabular-nums; }
+    .surv textarea { width: 100%; box-sizing: border-box; font-size: 0.8rem; padding: 6px; border: 1px solid #cbd5e1; border-radius: 8px; }
+    .ecard { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; margin: 8px 0; background: #f8fafc; }
+    .ecard.front { background: #4b5563; color: #fff; border-color: #1f2937; }
+    .ecard.type-road { border-left: 5px solid #475569; }
+    .ecard.type-corner { border-left: 5px dashed #ea580c; }
+    .ehead { font-size: 0.78rem; font-weight: 700; margin-bottom: 4px; }
+    .esub-inline { font-weight: 500; font-size: 0.68rem; opacity: 0.85; }
+    .efields { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .efields label { flex: 1 1 120px; font-size: 0.68rem; font-weight: 600; }
+    .efields input, .ecard select { width: 100%; box-sizing: border-box; padding: 5px; font-size: 0.85rem; margin-top: 1px; }
+    .ecard.front .efields label { color: #fff; }
+    .ecard.front .efields input { color: #111; }
+    .hint { font-size: 0.72rem; color: #64748b; margin: 4px 0 8px; line-height: 1.5; }
+
+    details.shade { margin: 10px 0; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; background: #fff; }
+    details.shade summary { cursor: pointer; font-weight: 600; color: #1e3a8a; padding: 4px 0; }
+    .chk { display: flex; gap: 8px; align-items: center; margin: 6px 0; font-size: 0.85rem; }
+    .chk input { width: auto; }
+    #shadeResult { margin-top: 12px; }
+    .shadecard { padding: 8px; break-inside: avoid; }
+    .shade-sum { font-weight: 700; text-align: center; padding: 6px; border-radius: 6px; margin-bottom: 6px; font-size: 0.9rem; }
+    .shade-sum.ok { background: #dcfce7; color: #166534; }
+    .shade-sum.ng { background: #fee2e2; color: #991b1b; }
+    .shade-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.68rem; color: #475569; margin: 6px 0; }
+    .shade-legend i { display: inline-block; width: 12px; height: 10px; vertical-align: middle; margin-right: 4px; }
+    .shade-note { font-size: 0.7rem; color: #64748b; line-height: 1.6; margin-top: 6px; }
+    .shadetbl { margin-top: 4px; }
+    .shadecard .warn { font-size: 0.78rem; margin-top: 6px; }
+    .shade-fit { margin: 8px 0; }
+    .shadebtn { width: 100%; padding: 10px 12px; font-size: 0.85rem; font-weight: 600; border: 1px solid #1e3a8a; background: #1e3a8a; color: #fff; border-radius: 8px; cursor: pointer; }
+    .shadebtn.sub { background: #fff; color: #1e3a8a; }
+    @media print { .shade-fit .shadebtn { display: none !important; } }
+    .shade-out { color: #b91c1c; font-weight: 700; font-size: 0.85rem; line-height: 1.5; background: #fef2f2; border: 1px solid #fca5a5; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="toplink" style="font-size:0.8rem;margin-bottom:6px"><a href="index.html">← ツール一覧へ</a>　<a href="guide.html">使い方</a></div>
+  <h1>簡易ボリューム検討ツール<span class="ver">変形地版</span></h1>
+  <div class="byline">株式会社スカイリブ環境計画　<span class="vstamp">版 2026-10-06 17:05</span></div>
+  <div id="errBanner" style="display:none;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:0.75rem;word-break:break-all"></div>
+  <script>window.__errs=[];window.addEventListener("error",function(e){var b=document.getElementById("errBanner");if(!b)return;window.__errs.push((e.message||"読み込み失敗")+(e.filename?" ("+String(e.filename).split("/").pop()+":"+e.lineno+":"+e.colno+")":""));b.style.display="block";b.innerHTML="エラー一覧（古い順）:<br>"+window.__errs.map(function(t,k){return (k+1)+". "+t.replace(/</g,"&lt;");}).join("<br>");});window.addEventListener("load",function(){if(!window.__appLoaded){var b=document.getElementById("errBanner");b.style.display="block";b.innerHTML+=(b.innerHTML?"<br>":"")+"本体のプログラムが最後まで実行されていません。";}});</script>
+
+  <div class="form-group">
+    <label>物件名 / 所在地（PDFに印字されます）</label>
+    <input type="text" id="projName" placeholder="物件名">
+    <input type="text" id="projAddr" placeholder="所在地" style="margin-top:6px">
+  </div>
+
+  <div class="form-group">
+    <label>用途地域</label>
+    <select id="zoning" onchange="applyZoning()">
+      <option value="">選択してください</option>
+      <option value="1low">第一種低層住居専用地域</option>
+      <option value="2low">第二種低層住居専用地域</option>
+      <option value="rural">田園住居地域</option>
+      <option value="1mid">第一種中高層住居専用地域</option>
+      <option value="2mid">第二種中高層住居専用地域</option>
+      <option value="1res">第一種住居地域</option>
+      <option value="2res">第二種住居地域</option>
+      <option value="quasi">準住居地域</option>
+      <option value="neighbor">近隣商業地域</option>
+      <option value="commercial">商業地域</option>
+      <option value="quasi-ind">準工業地域</option>
+      <option value="industrial">工業地域</option>
+      <option value="exclusive-ind">工業専用地域</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>法定建ぺい率（%） / 法定容積率（%）</label>
+    <div class="board-mid">
+      <input type="number" id="coverage" step="1" placeholder="法定建ぺい 60">
+      <input type="number" id="far" step="1" placeholder="法定容積 200">
+    </div>
+    <div class="esub-note">指定の数字（角地・防火の加算前）を入れてください。加算はツールが行います。</div>
+  </div>
+  <div class="form-group">
+    <label>建ぺい率の緩和（法53条）</label>
+    <select id="cornerMode">
+      <option value="off">角地：適用しない</option>
+      <option value="on">角地：適用する（+10%）</option>
+    </select>
+    <select id="fireMode" style="margin-top:6px">
+      <option value="none">防火：なし</option>
+      <option value="fire">防火地域＋耐火建築物等（+10%／法定80%なら100%）</option>
+      <option value="quasi">準防火地域＋耐火・準耐火建築物等（+10%）</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label>容積率の前面道路幅員制限（法52条2項）</label>
+    <select id="farRoadMode">
+      <option value="on">適用する（道路幅員12m未満のとき）</option>
+      <option value="off">適用しない</option>
+    </select>
+    <input type="number" id="tokuteiDist" step="1" min="0" placeholder="特定道路（幅員15m以上）までの距離 m（任意）" style="margin-top:6px">
+    <div class="esub-note">前面道路が6m以上12m未満で、幅員15m以上の道路まで70m未満のとき、道路に沿った距離を入れると割増します（法52条9項）。</div>
+  </div>
+  <div class="form-group">
+    <label>高度地区</label>
+    <select id="heightDistrict">
+      <option value="">なし</option>
+      <option value="h1">第一種（5m＋0.6）</option>
+      <option value="h2">第二種（5m＋1.25、8m超は0.6）</option>
+      <option value="h3">第三種（10m＋1.25、8m超は0.6）</option>
+      <option value="custom">手入力（立ち上がり＋勾配）</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label>高度斜線の立ち上がり（手入力・m）</label>
+    <input type="number" id="heightRise" step="0.1" placeholder="例: 5">
+  </div>
+  <div class="form-group">
+    <label>高度斜線の勾配（手入力）</label>
+    <input type="number" id="heightSlope" step="0.05" placeholder="例: 0.6">
+  </div>
+  <div class="form-group">
+    <label>高度斜線の2段目（任意）</label>
+    <select id="heightStage2Mode">
+      <option value="none">なし（1段のみ）</option>
+      <option value="height">高さ◯mを超える部分は2段目の勾配</option>
+      <option value="dist">境界から◯mを超える部分は2段目の勾配</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label>2段目に切り替わる位置（m：高さ、または境界からの距離）</label>
+    <input type="number" id="heightStage2At" step="0.1" placeholder="例: 15">
+  </div>
+  <div class="form-group">
+    <label>2段目の勾配（1段目より緩やかに）</label>
+    <input type="number" id="heightSlope2" step="0.05" placeholder="例: 0.6">
+  </div>
+  <div class="form-group">
+    <label>絶対高さ（任意・m）</label>
+    <input type="number" id="absHeightInput" step="0.1" placeholder="用途地域より厳しい場合">
+  </div>
+  <div class="form-group">
+    <label>斜線の判定高さ</label>
+    <select id="judgeMode">
+      <option value="top">各階の上端の高さで判定（安全側）</option>
+      <option value="bottom">各階の床高さで判定（緩め）</option>
+    </select>
+  </div>
+
+  <div class="board">
+    <div class="north-row">
+      <div class="compass" id="compass" title="北の矢印を回す">
+        <div class="compass-face" id="compassFace"></div>
+        <div class="compass-needle" id="compassNeedle"></div>
+        <div class="compass-hub"></div>
+      </div>
+      <div class="compass-caption">
+        北の矢印を回す<br>
+        手前が前面道路：<strong id="compassLabel">南</strong><br>
+        <label class="deg-row">道路の方位 <input type="number" id="compassDegInput" min="0" max="360" step="1" value="180" inputmode="decimal"> °</label>
+        <span class="esub">北=0 東=90 南=180 西=270（コンパスは1°刻みでドラッグ）</span>
+      </div>
+    </div>
+
+    <div class="shape-title">敷地の形</div>
+    <div class="dim-row">
+      <label>左右の幅 m<input type="number" id="width" class="req" step="0.1" placeholder="要入力"></label>
+      <label>前後の奥行 m<input type="number" id="depth" class="req" step="0.1" placeholder="要入力"></label>
+    </div>
+    <p class="hint">幅と奥行は長方形の敷地を作るための入力です。図の青い点をドラッグすると形を変えられます（点1・点2は手前の道路に接する辺なので固定）。辺の中央の＋で点を増やせます。</p>
+    <svg id="siteEditor" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style="width:100%;height:220px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;display:block;touch-action:pan-y"></svg>
+    <div class="ebtns">
+      <button type="button" id="btnDelV" disabled>選んだ点を削除</button>
+      <button type="button" id="btnRect">長方形に戻す</button>
+      <button type="button" id="btnBldgAuto">建物を最大に戻す</button>
+    </div>
+
+    <details class="coords">
+      <summary>座標で入力・確認する</summary>
+      <div class="esub-note">図の座標（点1を原点・m）。点を選んで動かした結果もここに出ます。数値を書き換えても点が動きます。</div>
+      <div id="coordTable"></div>
+      <div class="surv">
+        <div class="shape-title">測量座標（世界測地系・平面直角座標のX北・Y東）から作る</div>
+        <div class="esub-note">1行に「X Y」（点名があれば「名前 X Y」でも可）。<b>1行目・2行目は道路境界の2点</b>、3行目以降は敷地を一周する順に入れてください。道路の方位も座標から自動で決まります。</div>
+        <textarea id="survText" rows="6" placeholder="例&#10;-31000.000 -20000.000&#10;-31000.000 -19990.000&#10;-31015.000 -19990.000&#10;-31015.000 -20000.000"></textarea>
+        <button type="button" id="btnSurvey" class="subbtn">この座標で敷地を作る</button>
+        <div id="survMsg" class="esub-note"></div>
+      </div>
+    </details>
+
+    <div class="ecard front">
+      <div class="ehead">前面（手前）の道路　<span class="esub-inline">敷地の図の下側（点1→点2）</span></div>
+      <div class="efields">
+        <label>道路幅員 m<input type="number" id="road" class="req" step="0.1" placeholder="要入力"></label>
+        <label>GLからの高低差 m<input type="number" id="roadLevel" step="0.1" value="0" placeholder="0"></label>
+        <label>向こう側の公園等 奥行 m<input type="number" id="park_front" step="0.1" min="0" placeholder="なし"></label>
+        <label>後退距離 m<input type="number" id="setback" step="0.1" value="0" placeholder="0"></label>
+      </div>
+    </div>
+    <div id="edgeCards"></div>
+
+    <div class="shape-title">建物の設定</div>
+    <div class="dim-row">
+      <label>建物の左右幅 m<input type="number" id="bldgWidth" step="0.1" placeholder="空欄で最大"></label>
+      <label>建物の奥行 m<input type="number" id="bldgDepth" step="0.1" placeholder="空欄で最大"></label>
+      <label>1階床高さ m<input type="number" id="fl1" step="0.1" value="0.5"></label>
+      <label>階高 m<input type="number" id="floorHeight" step="0.1" value="3.0"></label>
+    </div>
+    <div class="hint">縦横を入れると、敷地の中に長方形の建物を置きます。図のオレンジの点をドラッグして多角形にもできます（辺の「＋」で点を追加、点を選んで削除、建物の中をドラッグで移動）。</div>
+    <details class="shade" id="shadeBox">
+      <summary>日影規制の検討（冬至日）</summary>
+      <label class="chk"><input type="checkbox" id="shadeOn"> 日影規制を検討する</label>
+      <div class="dim-row">
+        <label>測定面の高さ<select id="shadeH"><option value="1.5">GL＋1.5m</option><option value="4" selected>GL＋4m</option><option value="6.5">GL＋6.5m</option></select></label>
+        <label>規制時間（5〜10m／10m超）<select id="shadeT"><option value="3,2">3h－2h</option><option value="4,2.5" selected>4h－2.5h</option><option value="5,3">5h－3h</option></select></label>
+        <label>地域（緯度）<select id="shadeCity"><option value="43.06" data-hk="1">札幌（北緯43.06°）</option><option value="43.77" data-hk="1">旭川（北緯43.77°）</option><option value="41.77" data-hk="1">函館（北緯41.77°）</option><option value="38.27">仙台（北緯38.27°）</option><option value="37.92">新潟（北緯37.92°）</option><option value="36.56">金沢（北緯36.56°）</option><option value="35.68" selected>東京（北緯35.68°）</option><option value="35.44">横浜（北緯35.44°）</option><option value="35.18">名古屋（北緯35.18°）</option><option value="35.01">京都（北緯35.01°）</option><option value="34.69">大阪（北緯34.69°）</option><option value="34.69">神戸（北緯34.69°）</option><option value="34.39">広島（北緯34.39°）</option><option value="34.34">高松（北緯34.34°）</option><option value="33.59">福岡（北緯33.59°）</option><option value="26.21">那覇（北緯26.21°）</option><option value="custom">数値で指定</option></select></label>
+        <label>緯度（北緯・数値）<input type="number" id="shadeLat" step="0.01" value="35.68"></label>
+        <label>隣地との高低差 m（隣地が低いとき）<input type="number" id="shadeDiff" step="0.1" value="0"></label>
+      </div>
+      <div class="hint" id="shadeZoneHint">用途地域を選ぶと、測定面の高さ・規制時間の初期値が入ります。北海道の都市を選ぶと、測定時間は午前9時〜午後3時になります。実際の指定は自治体の条例で確認してください。</div>
+    </details>
+    <input type="hidden" id="roadDeg" value="180">
+  </div>
+
+  <button class="calc" onclick="calculate()">計算する</button>
+
+  <div id="printHeader">
+    <div class="ph-title">ボリューム検討シート</div>
+    <table class="ph-table">
+      <tr><th>物件名</th><td id="phName"></td><th>作成日</th><td id="phDate"></td></tr>
+      <tr><th>所在地</th><td id="phAddr" colspan="3"></td></tr>
+      <tr><th>用途地域</th><td id="phZone"></td><th>敷地</th><td id="phSite"></td></tr>
+      <tr><th>道路</th><td id="phRoads" colspan="3"></td></tr>
+    </table>
+  </div>
+  <div id="printFooter">株式会社スカイリブ環境計画</div>
+
+  <div id="result">
+    <button type="button" class="pdfbtn" onclick="window.print()">PDFで保存・印刷（ブラウザの印刷画面で「PDFに保存」を選択）</button>
+    <div class="summary" id="summary"></div>
+    <div id="floorAreas"></div>
+    <div class="plans" id="floorPlans"></div>
+    <div id="shadeResult"></div>
+    <div id="shadeResult"></div>
+    <details class="rules">
+      <summary>適用した規制の内容</summary>
+      <div class="result-item">斜線の判定高さ： <strong id="judgeText"></strong></div>
+      <div class="result-item">道路斜線勾配： <strong id="slopeRatio"></strong></div>
+      <div class="result-item">道路斜線の適用距離： <strong id="applyDistText"></strong></div>
+      <div class="result-item">道路に面する部分の高さ： <strong id="heightLimit"></strong> m</div>
+      <div class="result-item">1本目以外の道路： <strong id="road2RuleText"></strong></div>
+      <div class="result-item">建ぺい率： <strong id="covRuleText"></strong></div>
+      <div class="result-item">容積率： <strong id="farRuleText"></strong></div>
+      <div class="result-item">絶対高さ制限： <strong id="absHeight"></strong></div>
+      <div class="result-item">北側斜線： <strong id="northRuleText"></strong></div>
+      <div class="result-item">高度斜線： <strong id="heightRuleText"></strong></div>
+      <div class="result-item">隣地斜線： <strong id="adjRuleText"></strong></div>
+    </details>
+    <div id="canvas-container"></div>
+    <div class="view3d-bar">
+      <button type="button" onclick="setView(VIEW0)">初期の向き</button>
+      <button type="button" onclick="setView({ yaw: viewState.yaw, pitch: 1.5, dist: 70 })">真上から</button>
+      <label class="stairtog"><input type="checkbox" id="stairMode"> 斜線部を階段状に表示</label>
+      <span>ドラッグで回転・ホイール／ピンチで拡大縮小。PDFには今の向きの3Dが入ります。</span>
+    </div>
+    <p class="note">
+      ※簡易版です。<br>
+      ・敷地の形：手前の道路に接する辺（点1→点2）を基準に、点をドラッグして変形できます。各辺は「隣地／道路／隅切り」を選べます。<br>
+      ・隅切りの辺は、道路斜線・隣地斜線・北側斜線の対象にしません（両側の道路で検討する前提）。<br>
+      ・角地の建ぺい率緩和（+10%）は、道路の角度などで適用可否が変わるため自動では入れません。選択で指定してください。防火地域・準防火地域の緩和も選択です。<br>
+      ・建ぺい率は「法定」の数字に、角地・防火の加算をツールが加えます（法定80%で防火地域の耐火なら100%）。<br>
+      ・容積率は、最大の前面道路幅員が12m未満なら 幅員×0.4（住居系）／×0.6（その他）と法定の小さい方にします。特定道路までの距離を入れると割増します。<br>
+      ・複数の道路がある場合は、令132条の緩和（最大幅員の道路から幅員の2倍かつ35m以内、他の道路の中心から10m超）を、各辺の道路境界からの距離で自動適用します。<br>
+      ・隣地斜線・北側斜線は、隣地境界から建物までの離れぶん、境界が外側にあるものとして緩和します。辺ごとの離れで計算しています。<br>
+      ・道路斜線は、各道路の反対側の境界から適用距離（容積率と用途地域で20〜50m）までの範囲にだけかけています。後退した場合は、後退距離ぶん外側の線から測ります。<br>
+      ・道路面がGLより1m以上低いときは、高低差緩和（令135条の2）を自動適用します。道路の向こう側に公園等があるときは、その奥行きぶん道路境界を外側とみなします（令134条）。<br>
+      ・凹んだ角のある敷地は、離れ・斜線の測り方が近似になります。<br>
+      ・図は手前が前面道路です。3D空間内の赤矢印が「北」を指します。
+    </p>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+  <div class="sitefoot">株式会社スカイリブ環境計画　／　簡易ボリューム検討ツール</div>
+  <script>
+    const zoningData = {
+      "1low": { coverage: 50, far: 100, slope: 1.25, absHeight: 10, northStart: 5, northSlope: 1.25, adjStart: null, adjSlope: null },
+      "2low": { coverage: 60, far: 150, slope: 1.25, absHeight: 10, northStart: 5, northSlope: 1.25, adjStart: null, adjSlope: null },
+      "rural": { coverage: 30, far: 80, slope: 1.25, absHeight: 10, northStart: 5, northSlope: 1.25, adjStart: null, adjSlope: null },
+      "1mid": { coverage: 60, far: 200, slope: 1.25, absHeight: null, northStart: 10, northSlope: 1.25, adjStart: 20, adjSlope: 1.25 },
+      "2mid": { coverage: 60, far: 200, slope: 1.25, absHeight: null, northStart: 10, northSlope: 1.25, adjStart: 20, adjSlope: 1.25 },
+      "1res": { coverage: 60, far: 200, slope: 1.25, absHeight: null, northStart: null, northSlope: null, adjStart: 20, adjSlope: 1.25 },
+      "2res": { coverage: 60, far: 200, slope: 1.25, absHeight: null, northStart: null, northSlope: null, adjStart: 20, adjSlope: 1.25 },
+      "quasi": { coverage: 60, far: 200, slope: 1.25, absHeight: null, northStart: null, northSlope: null, adjStart: 20, adjSlope: 1.25 },
+      "neighbor": { coverage: 80, far: 200, slope: 1.5, absHeight: null, northStart: null, northSlope: null, adjStart: 31, adjSlope: 2.5 },
+      "commercial": { coverage: 80, far: 400, slope: 1.5, absHeight: null, northStart: null, northSlope: null, adjStart: 31, adjSlope: 2.5 },
+      "quasi-ind": { coverage: 60, far: 200, slope: 1.5, absHeight: null, northStart: null, northSlope: null, adjStart: 31, adjSlope: 2.5 },
+      "industrial": { coverage: 60, far: 200, slope: 1.5, absHeight: null, northStart: null, northSlope: null, adjStart: 31, adjSlope: 2.5 },
+      "exclusive-ind": { coverage: 60, far: 200, slope: 1.5, absHeight: null, northStart: null, northSlope: null, adjStart: 31, adjSlope: 2.5 }
+    };
+
+    function applyZoning() {
+      const key = document.getElementById('zoning').value;
+      if (key && zoningData[key]) {
+        document.getElementById('coverage').value = zoningData[key].coverage;
+        document.getElementById('far').value = zoningData[key].far;
+      }
+    }
+
+    const DIR_NAMES = ['北', '北北東', '北東', '東北東', '東', '東南東', '南東', '南南東', '南', '南南西', '南西', '西南西', '西', '西北西', '北西', '北北西'];
+
+    const CARDINALS = [{ deg: 0, name: '北' }, { deg: 90, name: '東' }, { deg: 180, name: '南' }, { deg: 270, name: '西' }];
+
+    function normDeg(d) { return ((d % 360) + 360) % 360; }
+
+    function dirLabel(deg) {
+      const d = normDeg(deg);
+      const idx = Math.round(d / 22.5) % 16;
+      let diff = Math.abs(d - idx * 22.5);
+      if (diff > 180) diff = 360 - diff;
+      return DIR_NAMES[idx] + (diff < 0.05 ? '' : '寄り');
+    }
+
+    function fmtDeg(d) { return String(Math.round(d * 10) / 10); }
+    // 図面の座標（手前が道路、左=-x、奥=+z）で見た北の向き。道路が東（90°）なら北は右（+x）
+    function northVec(deg) {
+      const rad = deg * Math.PI / 180;
+      return { nx: Math.sin(rad), nz: -Math.cos(rad) };
+    }
+
+    function northVec(deg) {
+      const rad = deg * Math.PI / 180;
+      return { nx: Math.sin(rad), nz: -Math.cos(rad) };
+    }
+
+    function applyDistance(zoningKey, far) {
+      if (!zoningKey || !(far > 0)) return null;
+      const pick = function (table) {
+        for (let i = 0; i < table.length; i++) if (far <= table[i][0]) return table[i][1];
+        return table[table.length - 1][1];
+      };
+      if (zoningKey === 'neighbor' || zoningKey === 'commercial') {
+        return pick([[400, 20], [600, 25], [800, 30], [1000, 35], [1100, 40], [1200, 45], [Infinity, 50]]);
+      }
+      return pick([[200, 20], [300, 25], [400, 30], [Infinity, 35]]);   // 住居系・工業系
+    }
+
+    function levelEff(level) {
+      const drop = -level;
+      return drop >= 1 ? level + (drop - 1) / 2 : level;
+    }
+
+    let scene, camera, renderer, group;
+    let animating = false;
+
+    function create3DCompass(nvec) {
+      const compassGroup = new THREE.Group();
+      
+      const arrowGeo = new THREE.ConeGeometry(0.8, 3, 8);
+      const arrowNorth = new THREE.Mesh(arrowGeo, new THREE.MeshStandardMaterial({ color: 0xdc2626 }));
+      arrowNorth.position.z = 1.5;
+      arrowNorth.rotation.x = Math.PI / 2;
+      compassGroup.add(arrowNorth);
+
+      const arrowSouth = new THREE.Mesh(arrowGeo, new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
+      arrowSouth.position.z = -1.5;
+      arrowSouth.rotation.x = -Math.PI / 2;
+      compassGroup.add(arrowSouth);
+
+      const ringGeo = new THREE.TorusGeometry(0.5, 0.1, 8, 24);
+      const ring = new THREE.Mesh(ringGeo, new THREE.MeshStandardMaterial({ color: 0x1e3a8a }));
+      ring.rotation.x = Math.PI / 2;
+      compassGroup.add(ring);
+
+      const angle = Math.atan2(nvec.nx, nvec.nz);
+      compassGroup.rotation.y = angle;
+
+      return compassGroup;
+    }
+
+    // 3Dの視点：左右にドラッグ＝回転、上下にドラッグ＝見下ろす角度、ホイール／ピンチ＝拡大縮小
+    const VIEW0 = { yaw: 0, pitch: Math.atan2(33, 47), dist: Math.hypot(33, 47) };
+    let viewState = { yaw: VIEW0.yaw, pitch: VIEW0.pitch, dist: VIEW0.dist };
+    const CAM_TARGET = { x: 0, y: 5, z: 8 };
+    function applyCamera() {
+      const v = viewState;
+      camera.position.set(CAM_TARGET.x, CAM_TARGET.y + v.dist * Math.sin(v.pitch), CAM_TARGET.z + v.dist * Math.cos(v.pitch));
+      camera.lookAt(CAM_TARGET.x, CAM_TARGET.y, CAM_TARGET.z);
+      if (group) group.rotation.y = v.yaw;
+    }
+    function setView(v) {
+      viewState = { yaw: v.yaw, pitch: v.pitch, dist: v.dist };
+      applyCamera();
+      if (renderer && scene) snap3D();
+    }
+    function initViewControls(el) {
+      el.style.touchAction = 'none';
+      el.style.cursor = 'grab';
+      const pts = new Map();
+      let pinch0 = null;
+      el.addEventListener('pointerdown', function (ev) {
+        el.setPointerCapture(ev.pointerId);
+        pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+        if (pts.size === 2) { const a = [...pts.values()]; pinch0 = { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y), dist: viewState.dist }; }
+        el.style.cursor = 'grabbing';
+      });
+      el.addEventListener('pointermove', function (ev) {
+        if (!pts.has(ev.pointerId)) return;
+        const prev = pts.get(ev.pointerId);
+        pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+        if (pts.size >= 2 && pinch0) {
+          const a = [...pts.values()];
+          const d = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
+          if (d > 0) viewState.dist = Math.min(160, Math.max(12, pinch0.dist * pinch0.d / d));
+        } else {
+          viewState.yaw += (ev.clientX - prev.x) * 0.008;
+          viewState.pitch = Math.min(1.5, Math.max(0.05, viewState.pitch + (ev.clientY - prev.y) * 0.005));
+        }
+        applyCamera();
+      });
+      const up = function (ev) {
+        pts.delete(ev.pointerId); pinch0 = null;
+        el.style.cursor = 'grab';
+        if (!pts.size) snap3D();
+      };
+      el.addEventListener('pointerup', up);
+      el.addEventListener('pointercancel', up);
+      el.addEventListener('wheel', function (ev) {
+        ev.preventDefault();
+        viewState.dist = Math.min(160, Math.max(12, viewState.dist * (1 + ev.deltaY * 0.001)));
+        applyCamera();
+        clearTimeout(initViewControls.t);
+        initViewControls.t = setTimeout(snap3D, 300);
+      }, { passive: false });
+    }
+
+
+    function init3D() {
+      const container = document.getElementById('canvas-container');
+      container.innerHTML = '';
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xe8eef7);
+      
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+      // カメラ視点：反転を防ぐため中央やや上部から見下ろす視点に微修正
+      applyCamera();
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.localClippingEnabled = true;
+      container.appendChild(renderer.domElement);
+      initViewControls(renderer.domElement);
+      scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+      dirLight.position.set(20, 30, 25);
+      scene.add(dirLight);
+    }
+
+    /* ================= 多角形エンジン（純粋な計算。three.js は使わない） ================= */
+    const GEPS = 1e-9;
+    const C_ROAD = 0xfb923c, C_ROAD2 = 0xfdba74, C_WIDE = 0xf59e0b;
+    const C_NORTH = 0x86efac, C_HEIGHT = 0xfacc15, C_ADJ = 0xc084fc, C_BLUE = 0x3b82f6;
+
+    function polyArea(p) {
+      let s = 0;
+      for (let i = 0; i < p.length; i++) { const j = (i + 1) % p.length; s += p[i].x * p[j].z - p[j].x * p[i].z; }
+      return s / 2;
+    }
+    function absArea(p) { return Math.abs(polyArea(p)); }
+    function totalArea(polys) { return polys.reduce(function (s, p) { return s + absArea(p); }, 0); }
+
+    // a*x + b*z >= c の側を残す（Sutherland–Hodgman）
+    function clipHalf(poly, a, b, c) {
+      const out = [], n = poly.length;
+      for (let i = 0; i < n; i++) {
+        const P = poly[i], Q = poly[(i + 1) % n];
+        const fp = a * P.x + b * P.z - c, fq = a * Q.x + b * Q.z - c;
+        const inP = fp >= 0, inQ = fq >= 0;
+        if (inP) out.push({ x: P.x, z: P.z });
+        if (inP !== inQ) { const t = fp / (fp - fq); out.push({ x: P.x + (Q.x - P.x) * t, z: P.z + (Q.z - P.z) * t }); }
+      }
+      return out;
+    }
+    function polyCentroid(p) {
+      let A = 0, cx = 0, cz = 0;
+      for (let i = 0; i < p.length; i++) {
+        const j = (i + 1) % p.length, cr = p[i].x * p[j].z - p[j].x * p[i].z;
+        A += cr; cx += (p[i].x + p[j].x) * cr; cz += (p[i].z + p[j].z) * cr;
+      }
+      if (Math.abs(A) < 1e-12) {
+        let sx = 0, sz = 0; p.forEach(function (q) { sx += q.x; sz += q.z; });
+        return { x: sx / p.length, z: sz / p.length };
+      }
+      return { x: cx / (3 * A), z: cz / (3 * A) };
+    }
+    function cleanPoly(p) {
+      let q = [];
+      p.forEach(function (pt) {
+        if (!q.length || Math.hypot(pt.x - q[q.length - 1].x, pt.z - q[q.length - 1].z) > 1e-7) q.push(pt);
+      });
+      if (q.length > 1 && Math.hypot(q[0].x - q[q.length - 1].x, q[0].z - q[q.length - 1].z) <= 1e-7) q.pop();
+      let changed = true;
+      while (changed && q.length >= 3) {
+        changed = false;
+        for (let i = 0; i < q.length; i++) {
+          const a = q[(i + q.length - 1) % q.length], b = q[i], c = q[(i + 1) % q.length];
+          if (Math.abs((b.x - a.x) * (c.z - b.z) - (b.z - a.z) * (c.x - b.x)) < 1e-8) { q.splice(i, 1); changed = true; break; }
+        }
+      }
+      return q;
+    }
+    function pointInPoly(x, z, p) {
+      let inside = false;
+      for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+        if (((p[i].z > z) !== (p[j].z > z)) && (x < (p[j].x - p[i].x) * (z - p[i].z) / (p[j].z - p[i].z) + p[i].x)) inside = !inside;
+      }
+      return inside;
+    }
+    function polyBBox(p) {
+      let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+      p.forEach(function (q) { x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); z0 = Math.min(z0, q.z); z1 = Math.max(z1, q.z); });
+      return { x0: x0, x1: x1, z0: z0, z1: z1 };
+    }
+    function segInter(a, b, c, d) {
+      const o = function (p, q, r) { return (q.x - p.x) * (r.z - p.z) - (q.z - p.z) * (r.x - p.x); };
+      const d1 = o(a, b, c), d2 = o(a, b, d), d3 = o(c, d, a), d4 = o(c, d, b);
+      return d1 * d2 < -1e-9 && d3 * d4 < -1e-9;
+    }
+    function polyIsSimple(p) {
+      const n = p.length;
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+        if (Math.abs(i - j) === 1 || (i === 0 && j === n - 1)) continue;
+        if (segInter(p[i], p[(i + 1) % n], p[j], p[(j + 1) % n])) return false;
+      }
+      return true;
+    }
+    function hasReflex(p) {
+      const n = p.length;
+      for (let i = 0; i < n; i++) {
+        const a = p[(i + n - 1) % n], b = p[i], c = p[(i + 1) % n];
+        if ((b.x - a.x) * (c.z - b.z) - (b.z - a.z) * (c.x - b.x) < -1e-9) return true;
+      }
+      return false;
+    }
+
+    // 辺 i（P_i→P_{i+1}）。敷地は反時計回りなので、進行方向の左が敷地の内側
+    function edgeGeom(pts, i) {
+      const A = pts[i], B = pts[(i + 1) % pts.length];
+      const dx = B.x - A.x, dz = B.z - A.z, L = Math.hypot(dx, dz) || 1e-12;
+      const ux = dx / L, uz = dz / L;
+      return { A: A, B: B, L: L, nin: { x: -uz, z: ux }, nout: { x: uz, z: -ux } };
+    }
+    function dEdge(eg, x, z) { return eg.nin.x * (x - eg.A.x) + eg.nin.z * (z - eg.A.z); }
+    // 斜線面：高さ = base + k × (辺からの内向き距離 + off)
+    function planeH(pl, x, z) { return pl.base + pl.k * (dEdge(pl.eg, x, z) + pl.off); }
+    function planeHalf(pl, h) {
+      const e = pl.eg;
+      return { a: pl.k * e.nin.x, b: pl.k * e.nin.z, c: h - pl.base - pl.k * pl.off + pl.k * (e.nin.x * e.A.x + e.nin.z * e.A.z) };
+    }
+
+    // 建物を建てられる範囲（敷地を各辺の後退距離ぶん内側に寄せ、建物幅・奥行で絞る）
+    function footprintOf(S, bW, bD) {
+      let poly = S.pts.map(function (q) { return { x: q.x, z: q.z }; });
+      S.edges.forEach(function (e, i) {
+        const sb = e.type === 'corner' ? 0 : (e.setback || 0);
+        if (sb > 0) {
+          const g = edgeGeom(S.pts, i);
+          poly = clipHalf(poly, g.nin.x, g.nin.z, g.nin.x * g.A.x + g.nin.z * g.A.z + sb);
+        }
+      });
+      if (poly.length >= 3) {
+        const bb = polyBBox(poly);
+        if (bW > 0) poly = clipHalf(poly, -1, 0, -(bb.x0 + bW));
+        if (bD > 0 && poly.length >= 3) poly = clipHalf(poly, 0, -1, -(bb.z0 + bD));
+      }
+      return cleanPoly(poly);
+    }
+    // 辺ごとの「建物と境界との離れ」（隣地斜線・北側斜線の後退緩和に使う）
+    function gapsOf(S, fp) {
+      return S.edges.map(function (e, i) {
+        if (e.type !== 'neighbor' || fp.length < 3) return 0;
+        const g = edgeGeom(S.pts, i);
+        let m = Infinity;
+        fp.forEach(function (q) { m = Math.min(m, dEdge(g, q.x, q.z)); });
+        return Math.max(0, isFinite(m) ? m : 0);
+      });
+    }
+
+    // 区画（凸多角形）に分け、それぞれに効く斜線面の一覧を作る
+    function makePieces(S, fpPoly, gaps) {
+      const roads = [];
+      S.edges.forEach(function (e, i) {
+        if (e.type === 'road') roads.push({ i: i, eg: edgeGeom(S.pts, i), width: e.width, park: e.park || 0, level: e.level || 0, setback: e.setback || 0 });
+      });
+      const common = [];
+      S.edges.forEach(function (e, i) {
+        if (e.type === 'corner') return;
+        const eg = edgeGeom(S.pts, i);
+        if (e.type === 'neighbor' && S.adj.enabled) {
+          common.push({ eg: eg, base: S.adj.start, k: S.adj.slope, off: gaps[i], color: C_ADJ, cutDist: null });
+        }
+        const c = eg.nout.x * S.north.nx + eg.nout.z * S.north.nz;
+        if (c > 0.001) {
+          const roadW = e.type === 'road' ? e.width : 0;
+          if (S.north.enabled) common.push({ eg: eg, base: S.north.start, k: S.north.slope / c, off: roadW + gaps[i], color: C_NORTH, cutDist: null });
+          S.heightRules.forEach(function (r) {
+            common.push({ eg: eg, base: r.start, k: r.slope / c, off: roadW, color: C_HEIGHT, cutDist: null });
+          });
+        }
+      });
+
+      // 令132条の緩和：最大幅員の道路から（幅員×2・35mの短い方）の範囲、他の道路の中心から10m超
+      let wMax = 0;
+      roads.forEach(function (r) { wMax = Math.max(wMax, r.width); });
+      const band = Math.min(wMax * 2, 35);
+      const tenOf = function (r) { return Math.max(0, 10 - r.width / 2); };
+      const multi = roads.length > 1;
+      let parkMax = 0;
+      roads.forEach(function (r) { if (r.width >= wMax - GEPS) parkMax = Math.max(parkMax, r.park); });
+
+      let pieces = [{ poly: fpPoly }];
+      if (multi) {
+        roads.forEach(function (r) {
+          const t = r.width >= wMax - GEPS ? band : tenOf(r);
+          const a = r.eg.nin.x, b = r.eg.nin.z, c = a * r.eg.A.x + b * r.eg.A.z + t;
+          const next = [];
+          pieces.forEach(function (pc) {
+            const inner = cleanPoly(clipHalf(pc.poly, -a, -b, -c));
+            const outer = cleanPoly(clipHalf(pc.poly, a, b, c));
+            if (inner.length >= 3 && absArea(inner) > 1e-7) next.push({ poly: inner });
+            if (outer.length >= 3 && absArea(outer) > 1e-7) next.push({ poly: outer });
+          });
+          pieces = next;
+        });
+      }
+      const dist = function (r, x, z) { return dEdge(r.eg, x, z); };
+      let work = pieces.map(function (pc) {
+        const c = polyCentroid(pc.poly);
+        const inBand = multi && roads.some(function (R) { return R.width >= wMax - GEPS && dist(R, c.x, c.z) <= band + GEPS; });
+        let anyRelief = false;
+        const planes = roads.map(function (r) {
+          const own = r.width + r.park;
+          let eff = own, relief = false;
+          if (multi && r.width < wMax - GEPS && (inBand || dist(r, c.x, c.z) > tenOf(r) + GEPS)) { eff = Math.max(own, wMax + parkMax); relief = eff > own + GEPS; }
+          if (relief) anyRelief = true;
+          return {
+            eg: r.eg, base: S.levelEff(r.level), k: S.slope, off: eff + r.setback,
+            color: relief ? C_WIDE : (r.i === 0 ? C_ROAD : C_ROAD2),
+            cutDist: S.applyDist == null ? null : S.applyDist - (eff + r.setback)
+          };
+        });
+        return { poly: pc.poly, planes: planes.concat(common.map(function (q) { return Object.assign({}, q); })), color: anyRelief ? C_WIDE : C_BLUE };
+      });
+      // 適用距離の境目で区画を分け、外側からは道路斜線面を外す
+      const done = [];
+      while (work.length) {
+        const pc = work.pop();
+        const idx = pc.planes.findIndex(function (q) { return q.cutDist !== null; });
+        if (idx < 0) { done.push(pc); continue; }
+        const pl = pc.planes[idx], e = pl.eg;
+        const a = e.nin.x, b = e.nin.z, c = a * e.A.x + b * e.A.z + pl.cutDist;
+        const withP = pc.planes.slice(); withP[idx] = Object.assign({}, pl, { cutDist: null });
+        const noP = pc.planes.filter(function (_, k) { return k !== idx; });
+        const inner = cleanPoly(clipHalf(pc.poly, -a, -b, -c));
+        const outer = cleanPoly(clipHalf(pc.poly, a, b, c));
+        if (inner.length >= 3 && absArea(inner) > 1e-7) work.push({ poly: inner, planes: withP, color: pc.color });
+        if (outer.length >= 3 && absArea(outer) > 1e-7) work.push({ poly: outer, planes: noP, color: pc.color });
+      }
+      return done;
+    }
+
+    // 高さ h の階で建てられる範囲（多角形の集まり）
+    function floorPolys(pieces, h) {
+      const out = [];
+      pieces.forEach(function (pc) {
+        let poly = pc.poly;
+        for (let k = 0; k < pc.planes.length && poly.length >= 3; k++) {
+          const hp = planeHalf(pc.planes[k], h);
+          poly = clipHalf(poly, hp.a, hp.b, hp.c);
+        }
+        poly = cleanPoly(poly);
+        if (poly.length >= 3 && absArea(poly) > 0.0025) out.push(poly);
+      });
+      return out;
+    }
+    function clipRearP(polys, zc) {
+      const out = [];
+      polys.forEach(function (p) {
+        const q = cleanPoly(clipHalf(p, 0, -1, -zc));
+        if (q.length >= 3 && absArea(q) > 0.0025) out.push(q);
+      });
+      return out;
+    }
+    function fitAreaP(polys, zLo, zHi, target) {
+      if (totalArea(clipRearP(polys, zHi)) <= target) return zHi;
+      let lo = zLo, hi = zHi;
+      for (let i = 0; i < 40; i++) {
+        const mid = (lo + hi) / 2;
+        if (totalArea(clipRearP(polys, mid)) <= target) lo = mid; else hi = mid;
+      }
+      return lo;
+    }
+    // 軸に平行な長方形なら {x0,x1,z0,z1}、そうでなければ null
+    function asRect(p) {
+      const q = cleanPoly(p);
+      if (q.length !== 4) return null;
+      for (let i = 0; i < 4; i++) {
+        const a = q[i], b = q[(i + 1) % 4];
+        if (Math.abs(a.x - b.x) > 1e-6 && Math.abs(a.z - b.z) > 1e-6) return null;
+      }
+      const bb = polyBBox(q);
+      return { x0: bb.x0, x1: bb.x1, z0: bb.z0, z1: bb.z1 };
+    }
+    function mergeRects(list) {
+      let rs = list.map(function (r) { return { x0: r.x0, x1: r.x1, z0: r.z0, z1: r.z1 }; });
+      const eq = function (a, b) { return Math.abs(a - b) < 0.01; };
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (let i = 0; i < rs.length && !changed; i++) {
+          for (let j = i + 1; j < rs.length && !changed; j++) {
+            const a = rs[i], b = rs[j];
+            if (eq(a.z0, b.z0) && eq(a.z1, b.z1) && (eq(a.x1, b.x0) || eq(b.x1, a.x0))) {
+              rs[i] = { x0: Math.min(a.x0, b.x0), x1: Math.max(a.x1, b.x1), z0: a.z0, z1: a.z1 };
+              rs.splice(j, 1); changed = true;
+            } else if (eq(a.x0, b.x0) && eq(a.x1, b.x1) && (eq(a.z1, b.z0) || eq(b.z1, a.z0))) {
+              rs[i] = { x0: a.x0, x1: a.x1, z0: Math.min(a.z0, b.z0), z1: Math.max(a.z1, b.z1) };
+              rs.splice(j, 1); changed = true;
+            }
+          }
+        }
+      }
+      rs.sort(function (a, b) { return (a.z0 - b.z0) || (a.x0 - b.x0); });
+      return rs;
+    }
+    function rectToPoly(r) { return [{ x: r.x0, z: r.z0 }, { x: r.x1, z: r.z0 }, { x: r.x1, z: r.z1 }, { x: r.x0, z: r.z1 }]; }
+    // 1つの階の形を、表示用の形（長方形ならまとめ直した長方形、そうでなければ多角形）にする
+    function floorShape(polys) {
+      const rects = polys.map(asRect);
+      if (rects.every(function (r) { return r; })) {
+        const m = mergeRects(rects);
+        return { polys: m.map(rectToPoly), text: m.map(function (r) { return (r.x1 - r.x0).toFixed(1) + '×' + (r.z1 - r.z0).toFixed(1); }).join('＋'), rect: true };
+      }
+      let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+      polys.forEach(function (p) { const bb = polyBBox(p); x0 = Math.min(x0, bb.x0); x1 = Math.max(x1, bb.x1); z0 = Math.min(z0, bb.z0); z1 = Math.max(z1, bb.z1); });
+      return { polys: polys, text: '多角形（外接 ' + (x1 - x0).toFixed(1) + '×' + (z1 - z0).toFixed(1) + '）', rect: false };
+    }
+
+    // 建物を自分で描いたとき：建物の多角形を、各辺の後退（離れ）で内側に絞った範囲
+    function footprintFromBldg(S, b) {
+      let poly = b.map(function (q) { return { x: q.x, z: q.z }; });
+      S.edges.forEach(function (ed, i) {
+        if (poly.length < 3) return;
+        const g = edgeGeom(S.pts, i);
+        const sb = ed.type === 'corner' ? 0 : (ed.setback || 0);
+        poly = clipHalf(poly, g.nin.x, g.nin.z, g.nin.x * g.A.x + g.nin.z * g.A.z + sb);
+      });
+      return cleanPoly(poly);
+    }
+    // 凸多角形 clip（反時計回り）の内側に subject を切り取る
+    function clipByConvex(subject, clip) {
+      let poly = subject;
+      for (let i = 0; i < clip.length && poly.length >= 3; i++) {
+        const A = clip[i], B = clip[(i + 1) % clip.length];
+        const a = -(B.z - A.z), b = B.x - A.x;
+        poly = clipHalf(poly, a, b, a * A.x + b * A.z);
+      }
+      return poly;
+    }
+
+    /* ================= 敷地の状態・図の編集 ================= */
+    let poly = null;          // 敷地の頂点（反時計回り。P0=手前の左、P1=手前の右。前面道路の辺の中央が原点）
+    let edgesState = [];      // 辺ごとの設定（辺 i は P_i → P_{i+1}）
+    let selVertex = -1, selB = -1;
+    let bldg = null;          // 自分で決めた建物の形（null なら敷地いっぱい＝自動）
+    let polyCustom = false;   // 点を動かした・座標で作った場合 true
+    let survOrigin = null;    // 測量座標から作ったときの P0 の座標 {X0, Y0}
+    let view = null, drag = null;
+
+    function defEdge(type) { return { type: type, width: NaN, level: 0, park: 0, setback: type === 'neighbor' ? 0.5 : 0 }; }
+    function makeRect(W, D) {
+      poly = [{ x: -W / 2, z: 0 }, { x: W / 2, z: 0 }, { x: W / 2, z: D }, { x: -W / 2, z: D }];
+      edgesState = [defEdge('road'), defEdge('neighbor'), defEdge('neighbor'), defEdge('neighbor')];
+      polyCustom = false; survOrigin = null; selVertex = -1; selB = -1; bldg = null; view = null;
+    }
+    function snapV(v) { return Math.round(v / 0.05) * 0.05; }
+    function r2(v) { return Math.round(v * 100) / 100; }
+
+    // 辺の外向きの方位（北=0、東=90…）
+    function edgeHeading(i) {
+      const g = edgeGeom(poly, i);
+      const nv = northVec(compassDeg);
+      const N = { x: nv.nx, z: nv.nz }, E = { x: nv.nz, z: -nv.nx };
+      const h = Math.atan2(E.x * g.nout.x + E.z * g.nout.z, N.x * g.nout.x + N.z * g.nout.z) * 180 / Math.PI;
+      return normDeg(h);
+    }
+    function edgeName(i) {
+      if (i === 0) return '前面（手前）';
+      const n = poly.length;
+      return '辺' + (i + 1) + '（点' + (i + 1) + '→点' + ((i + 1) % n + 1) + '）' + dirLabel(edgeHeading(i)) + '側';
+    }
+    const TYPE_LABEL = { neighbor: '隣地', road: '道路', corner: '隅切り' };
+
+    /* ---- 辺ごとの設定カード ---- */
+    function numVal(v) { return (typeof v === 'number' && isFinite(v)) ? v : ''; }
+    function renderEdgeCards() {
+      const box = document.getElementById('edgeCards');
+      if (!poly) { box.innerHTML = ''; return; }
+      let h = '';
+      for (let i = 1; i < poly.length; i++) {
+        const e = edgesState[i];
+        h += '<div class="ecard type-' + e.type + '" data-i="' + i + '"><div class="ehead">' + edgeName(i) + '　長さ ' + edgeGeom(poly, i).L.toFixed(2) + 'm</div>';
+        h += '<select class="e-type">' + ['neighbor', 'road', 'corner'].map(function (t) {
+          return '<option value="' + t + '"' + (e.type === t ? ' selected' : '') + '>' + TYPE_LABEL[t] + '</option>';
+        }).join('') + '</select>';
+        if (e.type === 'road') {
+          h += '<div class="efields">' +
+            '<label>道路幅員 m<input type="number" step="0.1" id="ew_' + i + '" data-f="width" class="req" placeholder="要入力" value="' + numVal(e.width) + '"></label>' +
+            '<label>高低差 m<input type="number" step="0.1" data-f="level" value="' + numVal(e.level) + '"></label>' +
+            '<label>向こう側の公園等 奥行m<input type="number" step="0.1" min="0" data-f="park" placeholder="なし" value="' + (e.park ? e.park : '') + '"></label>' +
+            '<label>後退距離 m<input type="number" step="0.1" min="0" data-f="setback" value="' + numVal(e.setback) + '"></label></div>';
+        } else if (e.type === 'neighbor') {
+          h += '<div class="efields"><label>隣地からの離れ m<input type="number" step="0.1" min="0" data-f="setback" value="' + numVal(e.setback) + '"></label></div>';
+        } else {
+          h += '<div class="esub-note">隅切り：道路斜線・隣地斜線・北側斜線の対象にしません（両側の道路で検討）。</div>';
+        }
+        h += '</div>';
+      }
+      box.innerHTML = h;
+    }
+    function initEdgeCards() {
+      const box = document.getElementById('edgeCards');
+      box.addEventListener('change', function (ev) {
+        if (!ev.target.classList.contains('e-type')) return;
+        const i = Number(ev.target.closest('.ecard').dataset.i);
+        const e = edgesState[i];
+        e.type = ev.target.value;
+        e.setback = e.type === 'neighbor' ? 0.5 : 0;
+        renderEdgeCards(); renderEditor();
+      });
+      box.addEventListener('input', function (ev) {
+        const f = ev.target.dataset && ev.target.dataset.f;
+        if (!f) return;
+        const i = Number(ev.target.closest('.ecard').dataset.i);
+        const v = parseFloat(ev.target.value);
+        edgesState[i][f] = isFinite(v) ? v : NaN;
+        if (f === 'width' || f === 'park') renderEditor(true);
+      });
+    }
+
+    /* ---- 敷地の図（SVG）：ドラッグで点を動かす ---- */
+    function computeView() {
+      const bb = polyBBox(poly);
+      const w = Math.max(bb.x1 - bb.x0, 1), d = Math.max(bb.z1 - bb.z0, 1);
+      const padX = Math.max(2.5, w * 0.12);
+      const front = Math.max(3, (parseFloat(document.getElementById('road').value) || 4) * 0.8);
+      return { x0: bb.x0 - padX, x1: bb.x1 + padX, z0: Math.min(bb.z0, 0) - front, z1: bb.z1 + Math.max(2, d * 0.1) };
+    }
+    function renderEditor(keepView) {
+      const svg = document.getElementById('siteEditor');
+      if (!poly) {
+        svg.setAttribute('viewBox', '0 0 300 120'); svg.style.height = '120px';
+        svg.innerHTML = '<text x="150" y="60" text-anchor="middle" font-size="12" fill="#64748b">敷地の左右の幅と前後の奥行を入れると、ここに図が出ます</text>';
+        return;
+      }
+      if (!keepView || !view) view = computeView();
+      const v = view, dx = v.x1 - v.x0, dz = v.z1 - v.z0;
+      const wPx = svg.getBoundingClientRect().width || 340;
+      const hPx = Math.min(Math.max(wPx * dz / dx, 220), 460);
+      svg.style.height = hPx + 'px';
+      svg.setAttribute('viewBox', v.x0 + ' ' + (-v.z1) + ' ' + dx + ' ' + dz);
+      const k = Math.max(dx / wPx, dz / hPx);   // 1px あたりのm
+      const P = function (p) { return p.x + ',' + (-p.z); };
+      let s = '';
+      // 前面道路
+      const fw = parseFloat(document.getElementById('road').value) || 0;
+      s += '<rect x="' + v.x0 + '" y="' + (-0) + '" width="' + dx + '" height="' + (-v.z0) + '" fill="#cbd5e1"/>';
+      s += '<text x="' + (v.x0 + dx / 2) + '" y="' + (-v.z0 / 2) + '" font-size="' + (11 * k) + '" text-anchor="middle" fill="#475569">前面道路' + (fw ? ' ' + fw + 'm' : '') + '</text>';
+      // 敷地
+      s += '<polygon points="' + poly.map(P).join(' ') + '" fill="#dbeafe" stroke="none"/>';
+      if (bldg) {
+        s += '<polygon data-role="bmove" points="' + bldg.map(P).join(' ') + '" fill="#fb923c" fill-opacity="0.35" stroke="#ea580c" stroke-width="' + (2 * k) + '" style="cursor:move;touch-action:none"/>';
+      }
+      // 辺
+      const n = poly.length;
+      for (let i = 0; i < n; i++) {
+        const a = poly[i], b = poly[(i + 1) % n], e = edgesState[i];
+        let stroke = '#1e40af', sw = 2 * k, dash = '';
+        if (e.type === 'road') { stroke = '#475569'; sw = 5 * k; }
+        if (e.type === 'corner') { stroke = '#ea580c'; sw = 3 * k; dash = ' stroke-dasharray="' + (6 * k) + ' ' + (4 * k) + '"'; }
+        s += '<line x1="' + a.x + '" y1="' + (-a.z) + '" x2="' + b.x + '" y2="' + (-b.z) + '" stroke="' + stroke + '" stroke-width="' + sw + '"' + dash + '/>';
+        const g = edgeGeom(poly, i);
+        const mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2;
+        // 長さの表示（敷地の内側へ少しずらす）
+        const lx = a.x + (b.x - a.x) * 0.22 + g.nin.x * 13 * k, lz = a.z + (b.z - a.z) * 0.22 + g.nin.z * 13 * k;
+        s += '<text x="' + lx + '" y="' + (-lz) + '" font-size="' + (10 * k) + '" text-anchor="middle" dominant-baseline="middle" fill="#1e3a8a">' + g.L.toFixed(2) + '</text>';
+        if (i > 0) {
+          s += '<circle data-role="add" data-i="' + i + '" cx="' + mx + '" cy="' + (-mz) + '" r="' + (9 * k) + '" fill="#fff" stroke="#1e40af" stroke-width="' + (1.2 * k) + '" style="cursor:copy;touch-action:none"/>' +
+            '<text x="' + mx + '" y="' + (-mz) + '" font-size="' + (12 * k) + '" text-anchor="middle" dominant-baseline="central" fill="#1e40af" pointer-events="none">＋</text>';
+        }
+      }
+      if (bldg) {
+        const nb = bldg.length;
+        for (let j = 0; j < nb; j++) {
+          const a = bldg[j], b = bldg[(j + 1) % nb];
+          const mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2;
+          s += '<circle data-role="badd" data-i="' + j + '" cx="' + mx + '" cy="' + (-mz) + '" r="' + (7 * k) + '" fill="#fff7ed" stroke="#ea580c" stroke-width="' + (1.2 * k) + '" style="cursor:copy;touch-action:none"/>' +
+            '<text x="' + mx + '" y="' + (-mz) + '" font-size="' + (10 * k) + '" text-anchor="middle" dominant-baseline="central" fill="#ea580c" pointer-events="none">＋</text>';
+          const L = Math.hypot(b.x - a.x, b.z - a.z);
+          if (L > 0.01) s += '<text x="' + (a.x + (b.x - a.x) * 0.25) + '" y="' + (-(a.z + (b.z - a.z) * 0.25)) + '" font-size="' + (9 * k) + '" text-anchor="middle" dominant-baseline="middle" fill="#9a3412" pointer-events="none">' + L.toFixed(2) + '</text>';
+        }
+        bldg.forEach(function (p, j) {
+          s += '<circle data-role="bv" data-i="' + j + '" cx="' + p.x + '" cy="' + (-p.z) + '" r="' + (9 * k) + '" fill="' + (j === selB ? '#f59e0b' : '#ea580c') + '" stroke="#fff" stroke-width="' + (1.5 * k) + '" style="cursor:grab;touch-action:none"/>' +
+            '<text x="' + p.x + '" y="' + (-p.z) + '" font-size="' + (9 * k) + '" font-weight="700" text-anchor="middle" dominant-baseline="central" fill="#fff" pointer-events="none">' + String.fromCharCode(65 + (j % 26)) + '</text>';
+        });
+      }
+      // 北の矢印
+      const nv = northVec(compassDeg);
+      const ax = v.x1 - 30 * k, az = v.z1 - 44 * k, L = 14 * k;
+      s += '<g pointer-events="none"><line x1="' + (ax - nv.nx * L) + '" y1="' + (-(az - nv.nz * L)) + '" x2="' + (ax + nv.nx * L) + '" y2="' + (-(az + nv.nz * L)) + '" stroke="#dc2626" stroke-width="' + (2 * k) + '"/>' +
+        '<polygon points="' + (ax + nv.nx * L) + ',' + (-(az + nv.nz * L)) + ' ' + (ax + nv.nx * L * 0.4 - nv.nz * L * 0.35) + ',' + (-(az + nv.nz * L * 0.4 + nv.nx * L * 0.35)) + ' ' + (ax + nv.nx * L * 0.4 + nv.nz * L * 0.35) + ',' + (-(az + nv.nz * L * 0.4 - nv.nx * L * 0.35)) + '" fill="#dc2626"/>' +
+        '<text x="' + (ax + nv.nx * L * 1.5) + '" y="' + (-(az + nv.nz * L * 1.5)) + '" font-size="' + (12 * k) + '" font-weight="700" fill="#dc2626" text-anchor="middle" dominant-baseline="central">北</text></g>';
+      // 頂点
+      poly.forEach(function (p, i) {
+        const locked = i < 2;
+        s += '<circle data-role="v" data-i="' + i + '" cx="' + p.x + '" cy="' + (-p.z) + '" r="' + (11 * k) + '" fill="' + (i === selVertex ? '#f59e0b' : (locked ? '#94a3b8' : '#2563eb')) + '" stroke="#fff" stroke-width="' + (1.5 * k) + '" style="cursor:' + (locked ? 'not-allowed' : 'grab') + ';touch-action:none"/>' +
+          '<text x="' + p.x + '" y="' + (-p.z) + '" font-size="' + (11 * k) + '" font-weight="700" text-anchor="middle" dominant-baseline="central" fill="#fff" pointer-events="none">' + (i + 1) + '</text>';
+      });
+      svg.innerHTML = s;
+      document.getElementById('btnDelV').disabled = !((selVertex >= 2 && poly.length > 3) || (selB >= 0 && bldg && bldg.length > 3));
+    }
+    function svgPoint(ev) {
+      const svg = document.getElementById('siteEditor');
+      const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+      const m = svg.getScreenCTM();
+      const q = pt.matrixTransform(m.inverse());
+      return { x: q.x, z: -q.y };
+    }
+    function initEditor() {
+      const svg = document.getElementById('siteEditor');
+      svg.addEventListener('pointerdown', function (ev) {
+        if (!poly) return;
+        const t = ev.target, role = t.getAttribute && t.getAttribute('data-role');
+        if (role === 'v') {
+          const i = Number(t.getAttribute('data-i'));
+          selVertex = i; selB = -1;
+          if (i >= 2) { drag = { kind: 'site', i: i }; try { svg.setPointerCapture(ev.pointerId); } catch (e) { } }
+          renderEditor(true);
+        } else if (role === 'add') {
+          addVertex(Number(t.getAttribute('data-i')));
+        } else if (role === 'bv') {
+          selB = Number(t.getAttribute('data-i')); selVertex = -1;
+          drag = { kind: 'bldg', i: selB }; try { svg.setPointerCapture(ev.pointerId); } catch (e) { }
+          renderEditor(true);
+        } else if (role === 'badd') {
+          const j = Number(t.getAttribute('data-i')), a = bldg[j], b = bldg[(j + 1) % bldg.length];
+          bldg.splice(j + 1, 0, { x: r2(snapV((a.x + b.x) / 2)), z: r2(snapV((a.z + b.z) / 2)) });
+          selB = j + 1; selVertex = -1; renderEditor(true);
+        } else if (role === 'bmove') {
+          const p0 = svgPoint(ev);
+          drag = { kind: 'move', p0: p0, orig: bldg.map(function (q) { return { x: q.x, z: q.z }; }) };
+          selB = -1; selVertex = -1;
+          try { svg.setPointerCapture(ev.pointerId); } catch (e) { }
+        } else {
+          selVertex = -1; selB = -1; renderEditor(true);
+        }
+      });
+      svg.addEventListener('pointermove', function (ev) {
+        if (!drag) return;
+        const p = svgPoint(ev);
+        if (drag.kind === 'bldg') {
+          bldg[drag.i] = { x: r2(snapV(p.x)), z: r2(snapV(p.z)) };
+          renderEditor(true);
+        } else if (drag.kind === 'move') {
+          const dx = snapV(p.x - drag.p0.x), dz = snapV(p.z - drag.p0.z);
+          bldg = drag.orig.map(function (q) { return { x: r2(q.x + dx), z: r2(q.z + dz) }; });
+          renderEditor(true);
+        } else {
+          poly[drag.i] = { x: r2(snapV(p.x)), z: r2(snapV(p.z)) };
+          renderEditor(true); updateTableValues();
+        }
+      });
+      const end = function () {
+        if (!drag) return;
+        const kind = drag.kind;
+        drag = null;
+        if (kind === 'site') { polyCustom = true; view = null; }
+        renderEditor(kind !== 'site'); renderEdgeCards(); updateTableValues();
+      };
+      svg.addEventListener('pointerup', end);
+      svg.addEventListener('pointercancel', end);
+      document.getElementById('btnDelV').addEventListener('click', delVertex);
+      document.getElementById('btnBldgAuto').addEventListener('click', function () {
+        bldg = null; selB = -1;
+        document.getElementById('bldgWidth').value = ''; document.getElementById('bldgDepth').value = '';
+        renderEditor(true);
+      });
+      document.getElementById('btnRect').addEventListener('click', function () {
+        const W = parseFloat(document.getElementById('width').value), D = parseFloat(document.getElementById('depth').value);
+        if (W > 0 && D > 0) { makeRect(W, D); renderAll(); }
+        else alert('敷地の左右の幅と前後の奥行を入れてください。');
+      });
+    }
+    function addVertex(i) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      poly.splice(i + 1, 0, { x: r2(snapV((a.x + b.x) / 2)), z: r2(snapV((a.z + b.z) / 2)) });
+      edgesState.splice(i, 0, Object.assign({}, edgesState[i]));
+      selVertex = i + 1; polyCustom = true; view = null;
+      renderAll();
+    }
+    function delVertex() {
+      if (selB >= 0 && bldg && bldg.length > 3) { bldg.splice(selB, 1); selB = -1; renderEditor(true); return; }
+      if (!(selVertex >= 2 && poly.length > 3)) return;
+      poly.splice(selVertex, 1);
+      edgesState.splice(selVertex, 1);
+      selVertex = -1; polyCustom = true; view = null;
+      renderAll();
+    }
+
+    /* ---- 座標表 ---- */
+    function survOf(p) {
+      // 図の座標 → 測量座標（X=北、Y=東）。P0 を基準にする
+      const nv = northVec(compassDeg);
+      const qx = p.x - poly[0].x, qz = p.z - poly[0].z;
+      return { X: survOrigin.X0 + qx * nv.nx + qz * nv.nz, Y: survOrigin.Y0 + qx * nv.nz + qz * (-nv.nx) };
+    }
+    function renderTable() {
+      const box = document.getElementById('coordTable');
+      if (!poly) { box.innerHTML = ''; return; }
+      let h = '<table class="ctable"><thead><tr><th>点</th><th>右へ x</th><th>奥へ z</th>' + (survOrigin ? '<th>X(北)</th><th>Y(東)</th>' : '') + '<th></th></tr></thead><tbody>';
+      poly.forEach(function (p, i) {
+        const x = r2(p.x - poly[0].x), z = r2(p.z);
+        h += '<tr><td>' + (i + 1) + (i < 2 ? '🔒' : '') + '</td>' +
+          '<td><input type="number" step="0.01" data-i="' + i + '" data-ax="x" value="' + x + '"' + (i === 0 ? ' disabled' : '') + '></td>' +
+          '<td><input type="number" step="0.01" data-i="' + i + '" data-ax="z" value="' + z + '"' + (i < 2 ? ' disabled' : '') + '></td>';
+        if (survOrigin) { const sv = survOf(p); h += '<td class="ro">' + sv.X.toFixed(3) + '</td><td class="ro">' + sv.Y.toFixed(3) + '</td>'; }
+        h += '<td>' + (i >= 2 && poly.length > 3 ? '<button type="button" class="tdel" data-del="' + i + '">削除</button>' : '') + '</td></tr>';
+      });
+      h += '</tbody></table>';
+      box.innerHTML = h;
+    }
+    function updateTableValues() {
+      const box = document.getElementById('coordTable');
+      if (!poly || box.querySelectorAll('tbody tr').length !== poly.length) { renderTable(); return; }
+      box.querySelectorAll('input[data-ax]').forEach(function (inp) {
+        const i = Number(inp.dataset.i);
+        inp.value = inp.dataset.ax === 'x' ? r2(poly[i].x - poly[0].x) : r2(poly[i].z);
+      });
+    }
+    function initTable() {
+      const box = document.getElementById('coordTable');
+      box.addEventListener('change', function (ev) {
+        const t = ev.target;
+        if (!t.dataset || !t.dataset.ax) return;
+        // 表の値（P0 基準）を読み直し、前面の辺の中央が原点になるように並べ直す
+        const rows = [...box.querySelectorAll('tbody tr')].map(function (tr) {
+          const ins = tr.querySelectorAll('input');
+          return { x: parseFloat(ins[0].value), z: parseFloat(ins[1].value) };
+        });
+        if (rows.some(function (r) { return !isFinite(r.x) || !isFinite(r.z); })) { renderTable(); return; }
+        rows[0] = { x: 0, z: 0 }; rows[1].z = 0;
+        if (!(rows[1].x > 0)) { alert('点2のxは、手前の間口（0より大きい値）にしてください。'); renderTable(); return; }
+        const L = rows[1].x;
+        poly = rows.map(function (r) { return { x: r.x - L / 2, z: r.z }; });
+        polyCustom = true; view = null;
+        renderEditor(); renderEdgeCards();
+        if (survOrigin) renderTable();
+      });
+      box.addEventListener('click', function (ev) {
+        const d = ev.target.dataset && ev.target.dataset.del;
+        if (d === undefined) return;
+        selVertex = Number(d); delVertex();
+      });
+      document.getElementById('btnSurvey').addEventListener('click', importSurvey);
+    }
+    function importSurvey() {
+      const txt = document.getElementById('survText').value;
+      const msg = document.getElementById('survMsg');
+      const pts = [];
+      txt.split(/\r?\n/).forEach(function (line) {
+        const nums = line.replace(/[、，]/g, ' ').split(/[\s,\t]+/).map(parseFloat).filter(function (v) { return isFinite(v); });
+        if (nums.length >= 2) pts.push({ X: nums[nums.length >= 3 ? 1 : 0], Y: nums[nums.length >= 3 ? 2 : 1] });
+      });
+      if (pts.length < 3) { msg.textContent = '3点以上（1行に X と Y）を入れてください。'; return; }
+      const build = function (a, b, rest) {
+        const dX = b.X - a.X, dY = b.Y - a.Y, L = Math.hypot(dX, dY);
+        const deg = normDeg(Math.atan2(dX, -dY) * 180 / Math.PI);
+        const nv = northVec(deg);
+        const loc = function (p) { const X = p.X - a.X, Y = p.Y - a.Y; return { x: X * nv.nx + Y * nv.nz, z: X * nv.nz - Y * nv.nx }; };
+        return { L: L, deg: deg, rest: rest.map(loc) };
+      };
+      let a = pts[0], b = pts[1], rest = pts.slice(2);
+      let r = build(a, b, rest);
+      if (!(r.L > 0.01)) { msg.textContent = '1行目と2行目（道路境界の2点）が同じ位置です。'; return; }
+      if (r.rest.reduce(function (s, q) { return s + q.z; }, 0) < 0) { const t = a; a = b; b = t; r = build(a, b, rest); }
+      let list = r.rest.slice();
+      const base = [{ x: 0, z: 0 }, { x: r.L, z: 0 }];
+      if (polyArea(base.concat(list)) < 0) list.reverse();
+      const full = base.concat(list);
+      if (!polyIsSimple(full)) { msg.textContent = '辺が交差しています。道路境界の2点のあと、敷地を一周する順に入力してください。'; return; }
+      poly = full.map(function (q) { return { x: q.x - r.L / 2, z: q.z }; });
+      edgesState = poly.map(function (_, i) { return defEdge(i === 0 ? 'road' : 'neighbor'); });
+      survOrigin = { X0: a.X, Y0: a.Y };
+      polyCustom = true; selVertex = -1; view = null;
+      setCompass(r.deg);
+      msg.textContent = poly.length + '点で敷地を作りました。道路の方位は ' + dirLabel(r.deg) + '（' + fmtDeg(r.deg) + '°）に自動で設定しました。道路に接する辺は、各辺の設定で「道路」にしてください。';
+      renderAll();
+    }
+
+    function renderAll() {
+      renderEditor(); renderTable(); renderEdgeCards();
+      ['width', 'depth'].forEach(function (id) { document.getElementById(id).classList.toggle('req', !poly); });
+    }
+
+    // 幅・奥行の入力で長方形を作る（点を動かしたあとは確認してから作り直す）
+    function onDimInput() {
+      const W = parseFloat(document.getElementById('width').value), D = parseFloat(document.getElementById('depth').value);
+      if (!(W > 0 && D > 0)) return;
+      if (poly && poly.length === 4 && !polyCustom) {
+        poly = [{ x: -W / 2, z: 0 }, { x: W / 2, z: 0 }, { x: W / 2, z: D }, { x: -W / 2, z: D }];
+        view = null; renderEditor(); updateTableValues();
+        return;
+      }
+      if (poly && polyCustom && !confirm('敷地の形を、入力した幅×奥行の長方形に作り直します。よろしいですか？')) return;
+      makeRect(W, D); renderAll();
+    }
+
+    // 建物の左右幅・奥行を入れたとき：敷地の中に収まる長方形の建物を置く（手前・左いっぱいを優先）
+    function placeBldgRect() {
+      if (!poly) return;
+      const bW = parseFloat(document.getElementById('bldgWidth').value), bD = parseFloat(document.getElementById('bldgDepth').value);
+      if (!(bW > 0) && !(bD > 0)) { bldg = null; selB = -1; renderEditor(true); return; }
+      const fp0 = footprintOf({ pts: poly, edges: readEdges() }, 0, 0);
+      if (fp0.length < 3) { bldg = null; renderEditor(true); return; }
+      const bb = polyBBox(fp0);
+      const w = bW > 0 ? bW : bb.x1 - bb.x0, d = bD > 0 ? bD : bb.z1 - bb.z0;
+      let best = null;
+      const xMax = Math.max(bb.x0, bb.x1 - w), zMax = Math.max(bb.z0, bb.z1 - d);
+      for (let z = bb.z0; z <= zMax + 1e-9; z += 0.25) {
+        for (let x = bb.x0; x <= xMax + 1e-9; x += 0.1) {
+          const rect = [{ x: x, z: z }, { x: x + w, z: z }, { x: x + w, z: z + d }, { x: x, z: z + d }];
+          const a = absArea(clipByConvex(rect, fp0));
+          if (!best || a > best.a + 1e-6) best = { a: a, x: x, z: z };
+        }
+      }
+      const x = r2(best.x), z = r2(best.z);
+      bldg = [{ x: x, z: z }, { x: r2(x + w), z: z }, { x: r2(x + w), z: r2(z + d) }, { x: x, z: r2(z + d) }];
+      selB = -1; renderEditor(true);
+    }
+
+    /* ================= 方位磁石 ================= */
+    let compassDeg = 180;   // 前面道路がある向き（北=0、東=90、南=180、西=270）
+
+    function setCompass(deg, keepInput) {
+      if (!isFinite(deg)) deg = compassDeg;
+      compassDeg = normDeg(Math.round(deg * 10) / 10);
+      document.getElementById('roadDeg').value = compassDeg;
+      document.getElementById('compassLabel').textContent = dirLabel(compassDeg) + '（' + fmtDeg(compassDeg) + '°）';
+      const degInput = document.getElementById('compassDegInput');
+      if (!keepInput) degInput.value = fmtDeg(compassDeg);
+      const needle = normDeg(180 - compassDeg);
+      document.getElementById('compassNeedle').style.transform = 'rotate(' + needle + 'deg)';
+      document.getElementById('compassFace').style.transform = 'rotate(' + needle + 'deg)';
+      document.querySelectorAll('.compass-name').forEach(function (el) {
+        el.style.transform = 'translate(-50%, -50%) rotate(' + (-needle) + 'deg)';
+      });
+      if (poly) { renderEdgeCards(); renderEditor(true); if (survOrigin) renderTable(); }
+    }
+
+    function initCompass() {
+      const face = document.getElementById('compassFace');
+      CARDINALS.forEach(function (d) {
+        const label = document.createElement('div');
+        label.className = 'compass-name';
+        label.textContent = d.name;
+        const rad = (d.deg - 90) * Math.PI / 180;
+        const r = 28;
+        label.style.left = (40 + Math.cos(rad) * r) + 'px';
+        label.style.top = (40 + Math.sin(rad) * r) + 'px';
+        face.appendChild(label);
+      });
+      const compass = document.getElementById('compass');
+      function pick(ev) {
+        const rect = compass.getBoundingClientRect();
+        const x = ev.clientX - rect.left - rect.width / 2;
+        const y = ev.clientY - rect.top - rect.height / 2;
+        let deg = Math.atan2(x, -y) * 180 / Math.PI;
+        if (deg < 0) deg += 360;
+        const roadDeg = normDeg(180 - deg);
+        let v = Math.round(roadDeg);
+        const nearest = Math.round(roadDeg / 22.5) * 22.5;
+        if (Math.abs(roadDeg - nearest) <= 2) v = nearest;
+        setCompass(v);
+      }
+      compass.addEventListener('pointerdown', function (ev) { compass.setPointerCapture(ev.pointerId); pick(ev); });
+      compass.addEventListener('pointermove', function (ev) { if (ev.buttons) pick(ev); });
+      const degInput = document.getElementById('compassDegInput');
+      degInput.addEventListener('input', function () {
+        const v = parseFloat(degInput.value);
+        if (isFinite(v)) setCompass(v, true);
+      });
+      degInput.addEventListener('change', function () {
+        const v = parseFloat(degInput.value);
+        setCompass(isFinite(v) ? v : compassDeg);
+        degInput.value = fmtDeg(compassDeg);
+      });
+      setCompass(compassDeg);
+    }
+
+    /* ================= 印刷（PDF） ================= */
+    let lastReport = { site: '', roads: '' };
+    function snap3D() {
+      try {
+        if (!(renderer && scene && camera)) return;
+        renderer.render(scene, camera);
+        let img = document.getElementById('print3d');
+        if (!img) {
+          img = document.createElement('img'); img.id = 'print3d'; img.alt = '3Dモデル';
+          document.getElementById('canvas-container').appendChild(img);
+        }
+        img.src = renderer.domElement.toDataURL('image/png');
+      } catch (e) { console.error(e); }
+    }
+    function preparePrint() {
+      const g = function (id) { return document.getElementById(id).value; };
+      const t = function (id, v) { document.getElementById(id).textContent = v || '―'; };
+      t('phName', g('projName')); t('phAddr', g('projAddr'));
+      t('phDate', new Date().toLocaleDateString('ja-JP'));
+      const z = document.getElementById('zoning');
+      t('phZone', z.value ? z.options[z.selectedIndex].text + '（法定 建ぺい' + g('coverage') + '%・容積' + g('far') + '%）' : '未選択');
+      t('phSite', lastReport.site);
+      t('phRoads', lastReport.roads);
+      document.querySelectorAll('details.rules').forEach(function (d) { d.open = true; });
+      snap3D();
+    }
+    window.addEventListener('beforeprint', preparePrint);
+
+    /* ================= 階ごとの平面図（SVG） ================= */
+    function planSvg(polys, ctx, isRect) {
+      const pts = ctx.poly, edges = ctx.edges;
+      const bands = [];   // 道路・公園等の帯
+      edges.forEach(function (e, i) {
+        if (e.type !== 'road') return;
+        const g = edgeGeom(pts, i), ext = 0;
+        const quad = function (a, b, col, label, lw) {
+          const q = [
+            { x: g.A.x + g.nout.x * a, z: g.A.z + g.nout.z * a }, { x: g.B.x + g.nout.x * a, z: g.B.z + g.nout.z * a },
+            { x: g.B.x + g.nout.x * b, z: g.B.z + g.nout.z * b }, { x: g.A.x + g.nout.x * b, z: g.A.z + g.nout.z * b }
+          ];
+          bands.push({ q: q, col: col, label: label, c: { x: (q[0].x + q[2].x) / 2, z: (q[0].z + q[2].z) / 2 } });
+        };
+        quad(0, e.width, '#cbd5e1', (i === 0 ? '道路 ' : '') + e.width + 'm');
+        if (e.park > 0) quad(e.width, e.width + e.park, '#bbf7d0', '公園等 ' + e.park + 'm');
+      });
+      let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+      const ext = function (p) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); };
+      pts.forEach(ext); bands.forEach(function (b) { b.q.forEach(ext); });
+      const m = 1.5;
+      const xMin = x0 - m, xMax = x1 + m, zMin = z0 - (bands.length ? 0 : m), zMax = z1 + m;
+      const sc = 200 / (xMax - xMin);
+      const X = function (x) { return ((x - xMin) * sc).toFixed(1); };
+      const Y = function (z) { return ((zMax - z) * sc).toFixed(1); };
+      const w = (xMax - xMin) * sc, h = (zMax - zMin) * sc;
+      const pol = function (q, attr) { return '<polygon points="' + q.map(function (p) { return X(p.x) + ',' + Y(p.z); }).join(' ') + '" ' + attr + '/>'; };
+      const text = function (x, z, t, size, fill) {
+        return '<text x="' + X(x) + '" y="' + Y(z) + '" font-size="' + size + '" fill="' + fill + '" text-anchor="middle" dominant-baseline="middle">' + t + '</text>';
+      };
+      let s = '<svg viewBox="0 0 ' + w.toFixed(0) + ' ' + h.toFixed(0) + '" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">';
+      s += '<rect x="0" y="0" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="#f1f5f9"/>';
+      bands.forEach(function (b) {
+        s += pol(b.q, 'fill="' + b.col + '"');
+        s += text(b.c.x, b.c.z, b.label, 11, b.col === '#bbf7d0' ? '#166534' : '#475569');
+      });
+      // 隅切りの辺
+      edges.forEach(function (e, i) {
+        if (e.type !== 'corner') return;
+        const g = edgeGeom(pts, i);
+        s += '<line x1="' + X(g.A.x) + '" y1="' + Y(g.A.z) + '" x2="' + X(g.B.x) + '" y2="' + Y(g.B.z) + '" stroke="#ea580c" stroke-width="2" stroke-dasharray="4 3"/>';
+      });
+      s += pol(pts, 'fill="#dbeafe" stroke="#1e40af" stroke-width="1.5"');
+      if (!isRect) {
+        // 区画ごとの境目が見えないよう、まず濃い輪郭を敷き、その上に塗りを重ねる
+        polys.forEach(function (p) { s += pol(p, 'fill="#1e3a8a" stroke="#1e3a8a" stroke-width="3" stroke-linejoin="round"'); });
+        polys.forEach(function (p) { s += pol(p, 'fill="#3b82f6" stroke="#3b82f6" stroke-width="2" stroke-linejoin="round"'); });
+      }
+      polys.forEach(function (p) {
+        if (isRect) s += pol(p, 'fill="#3b82f6" fill-opacity="0.85" stroke="#1e3a8a" stroke-width="1"');
+        const r = asRect(p);
+        if (r && (r.x1 - r.x0) * sc > 40 && (r.z1 - r.z0) * sc > 16) {
+          s += text((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, (r.x1 - r.x0).toFixed(1) + '×' + (r.z1 - r.z0).toFixed(1), 11, '#fff');
+        }
+      });
+      // 方位マーク
+      const dx = ctx.nvec.nx, dy = ctx.nvec.nz;
+      const cx = xMin + 2.5, cy = zMax - 2.5, L = 0.8;
+      const tx = cx + dx * L, ty = cy + dy * L, bx = cx - dx * L, by = cy - dy * L;
+      const px = -dy, py = dx;
+      s += '<line x1="' + X(bx) + '" y1="' + Y(by) + '" x2="' + X(tx) + '" y2="' + Y(ty) + '" stroke="#dc2626" stroke-width="1.5"/>';
+      s += '<polygon points="' + X(tx) + ',' + Y(ty) + ' ' + X(tx - dx * 0.4 + px * 0.3) + ',' + Y(ty - dy * 0.4 + py * 0.3) + ' ' + X(tx - dx * 0.4 - px * 0.3) + ',' + Y(ty - dy * 0.4 - py * 0.3) + '" fill="#dc2626"/>';
+      s += '<text x="' + X(tx + dx * 0.5) + '" y="' + Y(ty + dy * 0.5) + '" font-size="10" font-weight="700" fill="#dc2626" text-anchor="middle" dominant-baseline="middle">北</text>';
+      s += '</svg>';
+      return s;
+    }
+
+    /* ================= 3D ================= */
+    function hexRGB(hex) { return [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255]; }
+
+    // 多角形（反時計回り）を三角形に分ける（耳切り法）
+    function triangulate(p) {
+      const idx = p.map(function (_, i) { return i; });
+      if (polyArea(p) < 0) idx.reverse();
+      const tris = [];
+      let guard = 0;
+      while (idx.length > 3 && guard++ < 1000) {
+        let cut = false;
+        for (let k = 0; k < idx.length; k++) {
+          const ia = idx[(k + idx.length - 1) % idx.length], ib = idx[k], ic = idx[(k + 1) % idx.length];
+          const a = p[ia], b = p[ib], c = p[ic];
+          if ((b.x - a.x) * (c.z - b.z) - (b.z - a.z) * (c.x - b.x) <= 1e-12) continue;
+          let ok = true;
+          for (let j = 0; j < idx.length; j++) {
+            const q = idx[j];
+            if (q === ia || q === ib || q === ic) continue;
+            const pt = p[q];
+            const s1 = (b.x - a.x) * (pt.z - a.z) - (b.z - a.z) * (pt.x - a.x);
+            const s2 = (c.x - b.x) * (pt.z - b.z) - (c.z - b.z) * (pt.x - b.x);
+            const s3 = (a.x - c.x) * (pt.z - c.z) - (a.z - c.z) * (pt.x - c.x);
+            if (s1 >= 0 && s2 >= 0 && s3 >= 0) { ok = false; break; }
+          }
+          if (ok) { tris.push([ia, ib, ic]); idx.splice(k, 1); cut = true; break; }
+        }
+        if (!cut) break;
+      }
+      if (idx.length === 3) tris.push([idx[0], idx[1], idx[2]]);
+      return tris;
+    }
+
+    // 建築できる範囲（斜線で決まる高さ）の立体を、格子状の高さ場として作る
+    function envelopeGeometry(pieces, H, cap) {
+      let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+      pieces.forEach(function (pc) { const bb = polyBBox(pc.poly); x0 = Math.min(x0, bb.x0); x1 = Math.max(x1, bb.x1); z0 = Math.min(z0, bb.z0); z1 = Math.max(z1, bb.z1); });
+      if (!isFinite(x0)) return null;
+      const step = Math.max(0.2, Math.max(x1 - x0, z1 - z0) / 110);
+      const nx = Math.max(1, Math.ceil((x1 - x0) / step)), nz = Math.max(1, Math.ceil((z1 - z0) / step));
+      const hx = (x1 - x0) / nx, hz = (z1 - z0) / nz;
+      const pieceAt = function (x, z) {
+        for (let k = 0; k < pieces.length; k++) if (pointInPoly(x, z, pieces[k].poly)) return pieces[k];
+        return null;
+      };
+      const heightIn = function (pc, x, z) {
+        let h = H, col = pc.color;
+        pc.planes.forEach(function (pl) { const v = planeH(pl, x, z); if (v < h) { h = v; col = pl.color; } });
+        return { h: Math.max(h, 0), col: col };
+      };
+      const cells = [];
+      for (let i = 0; i < nx; i++) {
+        cells.push([]);
+        for (let j = 0; j < nz; j++) {
+          const xa = x0 + i * hx, xb = xa + hx, za = z0 + j * hz, zb = za + hz;
+          const pc = pieceAt((xa + xb) / 2, (za + zb) / 2);
+          if (!pc) { cells[i].push(null); continue; }
+          const cp = cap ? cap((xa + xb) / 2, (za + zb) / 2) : Infinity;
+          if (cp <= 0) { cells[i].push(null); continue; }
+          const top = heightIn(pc, (xa + xb) / 2, (za + zb) / 2);
+          cells[i].push({
+            pc: pc, col: top.col,
+            h: [Math.min(cp, heightIn(pc, xa, za).h), Math.min(cp, heightIn(pc, xb, za).h), Math.min(cp, heightIn(pc, xb, zb).h), Math.min(cp, heightIn(pc, xa, zb).h)],
+            xa: xa, xb: xb, za: za, zb: zb
+          });
+        }
+      }
+      const pos = [], col = [];
+      const tri = function (a, b, c, rgb) { pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]); for (let k = 0; k < 3; k++) col.push(rgb[0], rgb[1], rgb[2]); };
+      for (let i = 0; i < nx; i++) {
+        for (let j = 0; j < nz; j++) {
+          const c = cells[i][j]; if (!c) continue;
+          const t = hexRGB(c.col), side = hexRGB(c.pc.color);
+          const p00 = [c.xa, c.h[0], c.za], p10 = [c.xb, c.h[1], c.za], p11 = [c.xb, c.h[2], c.zb], p01 = [c.xa, c.h[3], c.zb];
+          tri(p00, p10, p11, t); tri(p00, p11, p01, t);
+          // 側面：隣のセルより高い部分だけ壁にする（隣が無ければ地面まで）
+          const wall = function (A0, A1, hA0, hA1, nb, k0, k1) {
+            const b0 = nb ? nb.h[k0] : 0, b1 = nb ? nb.h[k1] : 0;
+            if (hA0 <= b0 + 1e-4 && hA1 <= b1 + 1e-4) return;
+            const q0 = [A0[0], b0, A0[1]], q1 = [A1[0], b1, A1[1]], r1 = [A1[0], hA1, A1[1]], r0 = [A0[0], hA0, A0[1]];
+            tri(q0, q1, r1, side); tri(q0, r1, r0, side);
+          };
+          const ng = function (ii, jj) { return (ii >= 0 && ii < nx && jj >= 0 && jj < nz) ? cells[ii][jj] : null; };
+          wall([c.xa, c.za], [c.xb, c.za], c.h[0], c.h[1], ng(i, j - 1), 3, 2);   // 手前側（隣の奥の辺）
+          wall([c.xb, c.zb], [c.xa, c.zb], c.h[2], c.h[3], ng(i, j + 1), 1, 0);    // 奥側
+          wall([c.xa, c.zb], [c.xa, c.za], c.h[3], c.h[0], ng(i - 1, j), 2, 1);    // 左側
+          wall([c.xb, c.za], [c.xb, c.zb], c.h[1], c.h[2], ng(i + 1, j), 0, 3);    // 右側
+        }
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+      geo.computeVertexNormals();
+      return geo;
+    }
+
+    function flatPolyMesh(p, y, color, opacity) {
+      const tris = triangulate(p), pos = [];
+      tris.forEach(function (t) { t.forEach(function (k) { pos.push(p[k].x, y, p[k].z); }); });
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.computeVertexNormals();
+      const mat = new THREE.MeshStandardMaterial({ color: color, side: THREE.DoubleSide, transparent: opacity < 1, opacity: opacity });
+      return new THREE.Mesh(geo, mat);
+    }
+
+    // 高さの目盛り：敷地の脇に立てた物差し（各階の天端の高さを表示）
+    function labelSprite(text) {
+      const cv = document.createElement('canvas');
+      cv.width = 160; cv.height = 56;
+      const c = cv.getContext('2d');
+      c.font = 'bold 34px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.lineWidth = 7; c.strokeStyle = 'rgba(255,255,255,0.95)'; c.strokeText(text, 80, 29);
+      c.fillStyle = '#1e293b'; c.fillText(text, 80, 29);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false, transparent: true }));
+      sp.scale.set(2.9, 1.0, 1);
+      sp.renderOrder = 20;
+      return sp;
+    }
+    function addHeightRuler(grp, x, z, levels, topH) {
+      const mat = new THREE.LineBasicMaterial({ color: 0x475569 });
+      const seg = function (x0, y0, x1, y1) {
+        grp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x0, y0, z), new THREE.Vector3(x1, y1, z)]), mat));
+      };
+      seg(x, 0, x, topH);
+      for (let h = 0; h <= topH + 1e-6; h += 1) seg(x - 0.2, h, x + 0.2, h);
+      const mark = function (h, text) {
+        seg(x - 0.2, h, x + 0.7, h);
+        const sp = labelSprite(text);
+        sp.position.set(x + 2.3, h, z);
+        grp.add(sp);
+      };
+      mark(0, 'GL');
+      levels.forEach(function (lv) { mark(lv.h, lv.h.toFixed(1) + 'm'); });
+    }
+
+    function stairOn() { const e = document.getElementById('stairMode'); return !!(e && e.checked); }
+    function update3D(S, gaps, fpFinal, floors, fl1, floorH, nvec, capped) {
+      if (!scene) init3D();
+      if (group) scene.remove(group);
+      group = new THREE.Group();
+      // 図面の座標は「左=-x、奥=+z」（左手系）。three.js は右手系なので x を反転して鏡像にならないようにする
+      group.rotation.y = viewState.yaw;
+      group.scale.set(-1, 1, 1);
+
+      // 道路・公園等
+      S.edges.forEach(function (e, i) {
+        if (e.type !== 'road') return;
+        const g = edgeGeom(S.pts, i);
+        const ux = (g.B.x - g.A.x) / g.L, uz = (g.B.z - g.A.z) / g.L, ext = 7;
+        const band = function (a, b, color) {
+          const q = [
+            { x: g.A.x - ux * ext + g.nout.x * a, z: g.A.z - uz * ext + g.nout.z * a }, { x: g.B.x + ux * ext + g.nout.x * a, z: g.B.z + uz * ext + g.nout.z * a },
+            { x: g.B.x + ux * ext + g.nout.x * b, z: g.B.z + uz * ext + g.nout.z * b }, { x: g.A.x - ux * ext + g.nout.x * b, z: g.A.z - uz * ext + g.nout.z * b }
+          ];
+          group.add(flatPolyMesh(q, e.level + 0.01, color, 1));
+        };
+        band(0, e.width, 0x6b7280);
+        if (e.park > 0) band(e.width, e.width + e.park, 0x86c98a);
+        if (i === 0 && Math.abs(e.level) > 0.05) {
+          const wall = new THREE.Mesh(new THREE.BoxGeometry(g.L, Math.abs(e.level), 0.18), new THREE.MeshStandardMaterial({ color: 0xb7a898 }));
+          wall.position.set(0, e.level / 2, 0.09);
+          group.add(wall);
+        }
+      });
+
+      group.add(flatPolyMesh(S.pts, 0.02, 0x93c5fd, 0.6));
+
+      // 3D北矢印
+      const bb = polyBBox(S.pts);
+      const front = S.edges[0];
+      const compass3D = create3DCompass(nvec);
+      compass3D.position.set(bb.x0 - 5, 0.5, -(front.width + (front.park || 0)) - 2);
+      group.add(compass3D);
+
+      const H = fl1 + floors.length * floorH + 2.0;
+      const pieces = makePieces(S, fpFinal, gaps);
+      const farCut = floors.filter(function (f) { return f.farZ != null; })[0];
+      const capFn = (capped || stairOn()) ? function (x, z) {
+        let hh = 0;
+        floors.forEach(function (f) { const t = fl1 + f.floor * floorH; if (t > hh && f.polys.some(function (q) { return pointInPoly(x, z, q); })) hh = t; });
+        return hh;
+      } : (farCut ? function (x, z) {
+        // 容積率でぎりぎりまで削った階：その階の奥側のカット位置より奥は、1つ下の階の高さまで
+        return z > farCut.farZ ? (farCut.floor === 1 ? 0 : fl1 + (farCut.floor - 1) * floorH) : Infinity;
+      } : null);
+      const geo = envelopeGeometry(pieces, H, capFn);
+      if (geo) group.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 })));
+
+      // 各階の上端高さでの建築可能範囲の輪郭線（斜線で削られる位置の目安）
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x1e293b });
+      const lineHid = new THREE.LineBasicMaterial({ color: 0x1e293b, transparent: true, opacity: 0.3, depthWrite: false });
+      lineHid.depthFunc = 516; // GreaterDepth：面の裏に隠れた部分だけ薄く描く
+      floors.forEach(function (f) {
+        const y = fl1 + f.floor * floorH + 0.02;
+        f.polys.forEach(function (p) {
+          const pts = p.concat([p[0]]).map(function (q) { return new THREE.Vector3(q.x, y, q.z); });
+          const lg = new THREE.BufferGeometry().setFromPoints(pts);
+          group.add(new THREE.Line(lg, lineMat));
+          group.add(new THREE.Line(lg, lineHid));
+        });
+      });
+      const rx = Math.max.apply(null, S.pts.map(function (q) { return q.x; })) + 1.2;
+      addHeightRuler(group, rx, 0, floors.map(function (f) { return { h: fl1 + f.floor * floorH }; }), H);
+
+      scene.add(group);
+      if (!animating) {
+        animating = true;
+        (function animate() {
+          requestAnimationFrame(animate);
+          renderer.render(scene, camera);
+        })();
+      }
+    }
+
+    /* ================= 日影規制（冬至日の日影時間） ================= */
+    const SHADE_PRESET = {
+      '1low': { h: '1.5', t: '3,2', kind: 'low' }, '2low': { h: '1.5', t: '3,2', kind: 'low' }, 'rural': { h: '1.5', t: '3,2', kind: 'low' },
+      '1mid': { h: '4', t: '4,2.5', kind: 'high' }, '2mid': { h: '4', t: '4,2.5', kind: 'high' },
+      '1res': { h: '4', t: '4,2.5', kind: 'high' }, '2res': { h: '4', t: '4,2.5', kind: 'high' }, 'quasi': { h: '4', t: '4,2.5', kind: 'high' },
+      'neighbor': { h: '4', t: '5,3', kind: 'high' }, 'quasi-ind': { h: '4', t: '5,3', kind: 'high' }
+    };
+    function shadePreset() {
+      const key = document.getElementById('zoning').value;
+      const p = SHADE_PRESET[key];
+      const hint = document.getElementById('shadeZoneHint');
+      if (!p) { if (hint) hint.textContent = key ? 'この用途地域は、一般に日影規制の対象区域ではありません（条例で指定されている場合は、下の設定を選んでください）。' : ''; return; }
+      document.getElementById('shadeH').value = p.h;
+      document.getElementById('shadeT').value = p.t;
+      if (hint) hint.textContent = '測定面の高さ・規制時間の初期値を入れました。実際の指定は、自治体の条例で必ず確認してください。';
+    }
+
+    // 太陽の向き（冬至・真太陽時 hour）。e=東, n=北, u=上 の単位ベクトル
+    function sunDirAt(latDeg, hour) {
+      const phi = latDeg * Math.PI / 180, del = -23.4393 * Math.PI / 180, H = (hour - 12) * 15 * Math.PI / 180;
+      return {
+        u: Math.sin(phi) * Math.sin(del) + Math.cos(phi) * Math.cos(del) * Math.cos(H),
+        n: Math.cos(phi) * Math.sin(del) - Math.sin(phi) * Math.cos(del) * Math.cos(H),
+        e: -Math.cos(del) * Math.sin(H)
+      };
+    }
+    function pointInPoly2(x, z, poly) {
+      let c = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const a = poly[i], b = poly[j];
+        if ((a.z > z) !== (b.z > z) && x < (b.x - a.x) * (z - a.z) / (b.z - a.z) + a.x) c = !c;
+      }
+      return c;
+    }
+    function segCross(ax, az, bx, bz, cx, cz, dx, dz) {
+      const d1 = (bx - ax) * (cz - az) - (bz - az) * (cx - ax), d2 = (bx - ax) * (dz - az) - (bz - az) * (dx - ax);
+      const d3 = (dx - cx) * (az - cz) - (dz - cz) * (ax - cx), d4 = (dx - cx) * (bz - cz) - (dz - cz) * (bx - cx);
+      return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
+    }
+    function segHitsPoly(ax, az, bx, bz, poly) {
+      if (pointInPoly2(ax, az, poly) || pointInPoly2(bx, bz, poly)) return true;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        if (segCross(ax, az, bx, bz, poly[j].x, poly[j].z, poly[i].x, poly[i].z)) return true;
+      }
+      return false;
+    }
+    function distToSegXZ(px, pz, A, B) {
+      const dx = B.x - A.x, dz = B.z - A.z, l2 = dx * dx + dz * dz;
+      let t = l2 > 0 ? ((px - A.x) * dx + (pz - A.z) * dz) / l2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(px - (A.x + t * dx), pz - (A.z + t * dz));
+    }
+    // 道路・水路などに接する辺は、幅の1/2（幅10m超は反対側境界から5m）だけ外側を敷地境界線とみなす
+    function shadeEdgeOffset(e) {
+      if (!e || e.type !== 'road') return 0;
+      const w = e.width || 0;
+      return w <= 10 ? w / 2 : w - 5;
+    }
+    function shadeBoundaryDist(x, z, S) {
+      if (pointInPoly2(x, z, S.pts)) return -1;
+      let best = Infinity;
+      for (let i = 0; i < S.pts.length; i++) {
+        const d = distToSegXZ(x, z, S.pts[i], S.pts[(i + 1) % S.pts.length]) - shadeEdgeOffset(S.edges[i]);
+        if (d < best) best = d;
+      }
+      return best;
+    }
+
+    function shadeCityInit() {
+      const c = document.getElementById('shadeCity'), l = document.getElementById('shadeLat');
+      c.addEventListener('change', function () { if (c.value !== 'custom') l.value = c.value; });
+      l.addEventListener('input', function () {
+        const v = parseFloat(l.value);
+        const hit = Array.prototype.find.call(c.options, function (op) { return op.value !== 'custom' && parseFloat(op.value) === v; });
+        c.value = hit ? hit.value : 'custom';
+      });
+    }
+    function shadeIsHokkaido() {
+      const c = document.getElementById('shadeCity');
+      return c.value !== 'custom' && !!c.options[c.selectedIndex].getAttribute('data-hk');
+    }
+
+    function computeShade(o) {
+      const S = o.S, step = o.step || 0.5;
+      const bb = polyBBox(S.pts), M = 30;
+      const x0 = bb.x0 - M, z0 = bb.z0 - M;
+      const nx = Math.ceil((bb.x1 - bb.x0 + 2 * M) / step) + 1, nz = Math.ceil((bb.z1 - bb.z0 + 2 * M) / step) + 1;
+      const east = { x: o.nvec.nz, z: -o.nvec.nx }, north = { x: o.nvec.nx, z: o.nvec.nz };
+      // 時刻ごとの太陽（8:00〜16:00を5分刻み、各区間の中央）
+      const dt = o.dt || 5 / 60, sun = [];
+      const tA = o.t0 || 8, tB = o.t1 || 16;
+      for (let t = tA + dt / 2; t < tB; t += dt) {
+        const s = sunDirAt(o.lat, t);
+        if (s.u > 0.02) sun.push({ kx: (s.e * east.x + s.n * north.x) / s.u, kz: (s.e * east.z + s.n * north.z) / s.u });
+      }
+      const prisms = o.floors.map(function (f) {
+        return { lo: f.lo, hi: f.hi, polys: f.polys.filter(function (p) { return p.length >= 3; }) };
+      }).filter(function (p) { return p.polys.length; });
+      let Hmax = 0; const bx = { x0: 1e9, x1: -1e9, z0: 1e9, z1: -1e9 };
+      prisms.forEach(function (pr) {
+        Hmax = Math.max(Hmax, pr.hi);
+        pr.polys.forEach(function (p) { p.forEach(function (q) { bx.x0 = Math.min(bx.x0, q.x); bx.x1 = Math.max(bx.x1, q.x); bx.z0 = Math.min(bx.z0, q.z); bx.z1 = Math.max(bx.z1, q.z); }); });
+      });
+      const hrs = new Float32Array(nx * nz), dist = new Float32Array(nx * nz);
+      const h = o.planeH, per = dt;
+      for (let j = 0; j < nz; j++) {
+        const z = z0 + j * step;
+        for (let i = 0; i < nx; i++) {
+          const x = x0 + i * step, idx = j * nx + i;
+          dist[idx] = shadeBoundaryDist(x, z, S);
+          if (dist[idx] > 32) continue;
+          if (o.fast && dist[idx] <= 5) continue;
+          if (Hmax <= h) continue;
+          let cnt = 0;
+          for (let k = 0; k < sun.length; k++) {
+            const kx = sun[k].kx, kz = sun[k].kz;
+            // 測定点から太陽へ向かう光線の、建物の最高部までの水平な動き
+            const ex = x + (Hmax - h) * kx, ez = z + (Hmax - h) * kz;
+            if (Math.max(x, ex) < bx.x0 || Math.min(x, ex) > bx.x1 || Math.max(z, ez) < bx.z0 || Math.min(z, ez) > bx.z1) continue;
+            let hit = false;
+            for (let q = 0; q < prisms.length && !hit; q++) {
+              const pr = prisms[q];
+              if (pr.hi <= h) continue;
+              const ya = Math.max(pr.lo, h);
+              const ax = x + (ya - h) * kx, az = z + (ya - h) * kz, cx = x + (pr.hi - h) * kx, cz = z + (pr.hi - h) * kz;
+              for (let r = 0; r < pr.polys.length; r++) { if (segHitsPoly(ax, az, cx, cz, pr.polys[r])) { hit = true; break; } }
+            }
+            if (hit) cnt++;
+          }
+          hrs[idx] = cnt * per;
+        }
+      }
+      // 判定
+      const lim = o.limits; // {near, far}
+      let maxNear = 0, maxFar = 0, exceedCells = 0, worst = null;
+      for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+        const idx = j * nx + i, d = dist[idx], v = hrs[idx];
+        if (d <= 5 || d > 32) continue;
+        const L = d <= 10 ? lim.near : lim.far;
+        if (d <= 10) maxNear = Math.max(maxNear, v); else maxFar = Math.max(maxFar, v);
+        if (v > L + 1e-6) {
+          exceedCells++;
+          const ex = v - L;
+          if (!worst || ex > worst.ex) worst = { ex: ex, x: x0 + i * step, z: z0 + j * step, v: v };
+        }
+      }
+      return { x0: x0, z0: z0, nx: nx, nz: nz, step: step, hrs: hrs, dist: dist, maxNear: maxNear, maxFar: maxFar,
+        exceedArea: exceedCells * step * step, worst: worst, lim: lim, bx: bx };
+    }
+
+    // 等高線（marching squares）
+    function contourSegs(vals, nx, nz, x0, z0, step, level) {
+      const segs = [];
+      const P = function (i0, j0, i1, j1) {
+        const a = vals[j0 * nx + i0], b = vals[j1 * nx + i1], t = (b - a) === 0 ? 0.5 : (level - a) / (b - a);
+        return [x0 + (i0 + (i1 - i0) * t) * step, z0 + (j0 + (j1 - j0) * t) * step];
+      };
+      for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) {
+        const v00 = vals[j * nx + i] >= level, v10 = vals[j * nx + i + 1] >= level, v11 = vals[(j + 1) * nx + i + 1] >= level, v01 = vals[(j + 1) * nx + i] >= level;
+        const c = (v00 ? 1 : 0) + (v10 ? 2 : 0) + (v11 ? 4 : 0) + (v01 ? 8 : 0);
+        if (c === 0 || c === 15) continue;
+        const bo = function () { return P(i, j, i + 1, j); }, ri = function () { return P(i + 1, j, i + 1, j + 1); };
+        const to = function () { return P(i, j + 1, i + 1, j + 1); }, le = function () { return P(i, j, i, j + 1); };
+        const add = function (a, b) { segs.push([a[0], a[1], b[0], b[1]]); };
+        switch (c) {
+          case 1: case 14: add(le(), bo()); break;
+          case 2: case 13: add(bo(), ri()); break;
+          case 3: case 12: add(le(), ri()); break;
+          case 4: case 11: add(ri(), to()); break;
+          case 5: add(le(), bo()); add(ri(), to()); break;
+          case 6: case 9: add(bo(), to()); break;
+          case 7: case 8: add(le(), to()); break;
+          case 10: add(bo(), ri()); add(le(), to()); break;
+        }
+      }
+      return segs;
+    }
+
+    function shadeSvg(res, S, floors, nvec) {
+      const st = res.step;
+      // 表示範囲：敷地と、日影が落ちる範囲
+      const sb = polyBBox(S.pts);
+      let X0 = sb.x0, X1 = sb.x1, Z0 = sb.z0, Z1 = sb.z1;
+      for (let j = 0; j < res.nz; j++) for (let i = 0; i < res.nx; i++) {
+        const idx = j * res.nx + i;
+        if (res.hrs[idx] > 0 && res.dist[idx] <= 30) {
+          const x = res.x0 + i * st, z = res.z0 + j * st;
+          X0 = Math.min(X0, x); X1 = Math.max(X1, x); Z0 = Math.min(Z0, z); Z1 = Math.max(Z1, z);
+        }
+      }
+      const mg = 4; X0 -= mg; X1 += mg; Z0 -= mg; Z1 += mg;
+      const i0 = Math.max(0, Math.floor((X0 - res.x0) / st)), i1 = Math.min(res.nx - 1, Math.ceil((X1 - res.x0) / st));
+      const j0 = Math.max(0, Math.floor((Z0 - res.z0) / st)), j1 = Math.min(res.nz - 1, Math.ceil((Z1 - res.z0) / st));
+      const cw = i1 - i0 + 1, ch = j1 - j0 + 1;
+      const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+      const g = cv.getContext('2d');
+      const img = g.createImageData(cw, ch);
+      const cols = [[254, 243, 199], [253, 230, 138], [252, 211, 77], [245, 158, 11], [217, 119, 6]];
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const idx = j * res.nx + i, v = res.hrs[idx], d = res.dist[idx];
+        const px = ((j1 - j) * cw + (i - i0)) * 4;
+        if (v <= 0) continue;
+        const col = cols[Math.min(4, Math.floor(v))];
+        let a = 215;
+        let rgb = col;
+        const reg = d > 5 && d <= 32;
+        if (reg) {
+          const L = d <= 10 ? res.lim.near : res.lim.far;
+          if (v > L + 1e-6) { rgb = [220, 38, 38]; a = 200; }
+        } else a = 120;
+        img.data[px] = rgb[0]; img.data[px + 1] = rgb[1]; img.data[px + 2] = rgb[2]; img.data[px + 3] = a;
+      }
+      g.putImageData(img, 0, 0);
+      const url = cv.toDataURL('image/png');
+      const ix0 = res.x0 + i0 * st - st / 2, iz1 = res.z0 + j1 * st + st / 2;
+      const f2 = function (n) { return (Math.round(n * 100) / 100); };
+      let s = '<svg viewBox="' + f2(X0) + ' ' + f2(-Z1) + ' ' + f2(X1 - X0) + ' ' + f2(Z1 - Z0) + '" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px">';
+      s += '<image href="' + url + '" x="' + f2(ix0) + '" y="' + f2(-iz1) + '" width="' + f2(cw * st) + '" height="' + f2(ch * st) + '" style="image-rendering:pixelated" preserveAspectRatio="none"/>';
+      // 道路
+      S.edges.forEach(function (e, i) {
+        if (e.type !== 'road') return;
+        const gg = edgeGeom(S.pts, i), w = e.width || 0;
+        const q = [[gg.A.x, gg.A.z], [gg.B.x, gg.B.z], [gg.B.x + gg.nout.x * w, gg.B.z + gg.nout.z * w], [gg.A.x + gg.nout.x * w, gg.A.z + gg.nout.z * w]];
+        s += '<polygon points="' + q.map(function (p) { return f2(p[0]) + ',' + f2(-p[1]); }).join(' ') + '" fill="#cbd5e1" fill-opacity="0.7"/>';
+      });
+      // 5m・10mライン
+      [5, 10].forEach(function (lv) {
+        const segs = contourSegs(res.dist, res.nx, res.nz, res.x0, res.z0, st, lv);
+        let d = '';
+        segs.forEach(function (q) { d += 'M' + f2(q[0]) + ' ' + f2(-q[1]) + 'L' + f2(q[2]) + ' ' + f2(-q[3]); });
+        s += '<path d="' + d + '" fill="none" stroke="#64748b" stroke-width="0.12" stroke-dasharray="0.6 0.5"/>';
+      });
+      // 規制時間の等時間線（それぞれの範囲内だけ）
+      const lines = [[res.lim.near, 5, 10], [res.lim.far, 10, 33]];
+      lines.forEach(function (ln) {
+        const segs = contourSegs(res.hrs, res.nx, res.nz, res.x0, res.z0, st, ln[0]);
+        let d = '';
+        segs.forEach(function (q) {
+          const mx = (q[0] + q[2]) / 2, mz = (q[1] + q[3]) / 2, dd = shadeBoundaryDist(mx, mz, S);
+          if (dd > ln[1] && dd <= ln[2]) d += 'M' + f2(q[0]) + ' ' + f2(-q[1]) + 'L' + f2(q[2]) + ' ' + f2(-q[3]);
+        });
+        s += '<path d="' + d + '" fill="none" stroke="#b91c1c" stroke-width="0.22"/>';
+      });
+      // 敷地・建物
+      s += '<polygon points="' + S.pts.map(function (p) { return f2(p.x) + ',' + f2(-p.z); }).join(' ') + '" fill="#dbeafe" fill-opacity="0.55" stroke="#1e3a8a" stroke-width="0.25"/>';
+      if (floors[0]) floors[0].polys.forEach(function (p) {
+        s += '<polygon points="' + p.map(function (q) { return f2(q.x) + ',' + f2(-q.z); }).join(' ') + '" fill="#3b82f6" stroke="#1e3a8a" stroke-width="0.15"/>';
+      });
+      if (res.worst) s += '<circle cx="' + f2(res.worst.x) + '" cy="' + f2(-res.worst.z) + '" r="0.7" fill="none" stroke="#7f1d1d" stroke-width="0.2"/>';
+      // 北矢印・スケール
+      const ax = X1 - 7, az = Z1 - 8, vx = nvec.nx, vy = -nvec.nz;
+      s += '<g stroke="#dc2626" stroke-width="0.4" fill="#dc2626"><line x1="' + f2(ax - vx * 3.5) + '" y1="' + f2(-az - vy * 3.5) + '" x2="' + f2(ax + vx * 3.5) + '" y2="' + f2(-az + vy * 3.5) + '"/><circle cx="' + f2(ax + vx * 3.5) + '" cy="' + f2(-az + vy * 3.5) + '" r="0.9"/><text x="' + f2(ax + vx * 6 - 1.2) + '" y="' + f2(-az + vy * 6 + 1) + '" font-size="3.2" stroke="none">北</text></g>';
+      // スケールバー：10m、1mごとに目盛り（5mと10mは長め）
+      const sx = X0 + 2, sy = -Z0 - 2;
+      let sc = '<line x1="' + f2(sx) + '" y1="' + f2(sy) + '" x2="' + f2(sx + 10) + '" y2="' + f2(sy) + '"/>';
+      for (let m = 0; m <= 10; m++) { const th = (m === 0 || m === 5 || m === 10) ? 1.4 : 0.8; sc += '<line x1="' + f2(sx + m) + '" y1="' + f2(sy) + '" x2="' + f2(sx + m) + '" y2="' + f2(sy - th) + '"/>'; }
+      s += '<g stroke="#334155" stroke-width="0.14">' + sc + '</g>';
+      s += '<g fill="#334155" font-size="2.6"><text x="' + f2(sx - 0.6) + '" y="' + f2(sy - 2.0) + '">0</text><text x="' + f2(sx + 4.2) + '" y="' + f2(sy - 2.0) + '">5</text><text x="' + f2(sx + 8.6) + '" y="' + f2(sy - 2.0) + '">10m</text></g>';
+      s += '</svg>';
+      return s;
+    }
+
+    function shadeParams() {
+      const hMeas = parseFloat(document.getElementById('shadeH').value);
+      const tt = document.getElementById('shadeT').value.split(',').map(parseFloat);
+      const lat = parseFloat(document.getElementById('shadeLat').value) || 35.68;
+      const diff = Math.max(0, parseFloat(document.getElementById('shadeDiff').value) || 0);
+      const hk = shadeIsHokkaido();
+      return { tt: tt, lat: lat, diff: diff, planeH: hMeas + (diff >= 1 ? (diff - 1) / 2 : 0), t0: hk ? 9 : 8, t1: hk ? 15 : 16 };
+    }
+    function shadePrisms(floors, fl1, floorH) {
+      return floors.map(function (f) { return { lo: f.floor === 1 ? 0 : fl1 + (f.floor - 1) * floorH, hi: fl1 + f.floor * floorH, polys: f.polys }; });
+    }
+
+    // 階ごとに北側を後退させて、日影規制を満たす形にする
+    function shadeFitFloors(S, floors, nvec, fl1, floorH, cutVec) {
+      const P = shadeParams(), cv = cutVec || nvec;
+      const dot = function (q) { return q.x * cv.nx + q.z * cv.nz; };
+      let cmax = -Infinity;
+      floors.forEach(function (f) { f.polys.forEach(function (p) { p.forEach(function (q) { cmax = Math.max(cmax, dot(q)); }); }); });
+      const spans = floors.map(function (f) {
+        let mn = Infinity; f.polys.forEach(function (p) { p.forEach(function (q) { mn = Math.min(mn, dot(q)); }); });
+        return cmax - mn;
+      });
+      const build = function (cuts) {
+        const out = [];
+        for (let k = 0; k < floors.length; k++) {
+          if (!isFinite(cuts[k])) break;
+          let polys = floors[k].polys;
+          if (cuts[k] > 0) {
+            polys = polys.map(function (p) { return cleanPoly(clipHalf(p, -cv.nx, -cv.nz, -(cmax - cuts[k]))); }).filter(function (p) { return p.length >= 3 && absArea(p) > 0.3; });
+          }
+          const a = totalArea(polys);
+          if (a < 5) break;
+          const sh = floorShape(polys);
+          out.push({ floor: floors[k].floor, polys: sh.polys, text: sh.text, area: a, rect: sh.rect });
+        }
+        return out;
+      };
+      const ok = function (cuts, fast) {
+        const fl = build(cuts);
+        if (!fl.length) return true;
+        const r = computeShade({ t0: P.t0, t1: P.t1, S: S, floors: shadePrisms(fl, fl1, floorH), nvec: nvec, lat: P.lat, planeH: P.planeH,
+          limits: { near: P.tt[0], far: P.tt[1] }, step: fast ? 1.0 : 0.5, dt: fast ? 10 / 60 : 5 / 60, fast: true });
+        return r.maxNear <= P.tt[0] + 1e-6 && r.maxFar <= P.tt[1] + 1e-6;
+      };
+      const zero = floors.map(function () { return 0; });
+      if (ok(zero, true) && ok(zero, false)) return { floors: build(zero), cuts: [], noChange: true };
+      const maxSpan = Math.max.apply(null, spans);
+      // 後退の量を少しずつ増やして、最小の量を探す（0.5m単位）
+      const search = function (make) {
+        if (!ok(make(maxSpan + 1), true)) return null;
+        let lo = 0, hi = maxSpan + 1;
+        for (let it = 0; it < 8; it++) { const mid = (lo + hi) / 2; if (ok(make(mid), true)) hi = mid; else lo = mid; }
+        let p = Math.ceil(hi * 2) / 2;
+        for (let n = 0; n < 24 && !ok(make(p), false); n++) p += 0.5;
+        return ok(make(p), false) ? make(p) : null;
+      };
+      const cands = [];
+      for (let m = 0; m < floors.length; m++) {
+        // 階ごとに p ずつ後退を増やす（m階より上）
+        cands.push(search(function (p) { return floors.map(function (_, k) { return k > m ? p * (k - m) : 0; }); }));
+        // m階以上を一定量だけ後退
+        cands.push(search(function (p) { return floors.map(function (_, k) { return k >= m ? p : 0; }); }));
+      }
+      // 上の階から順に、なくす／後退させる
+      (function () {
+        const cuts = zero.slice();
+        for (let k = floors.length - 1; k >= 0; k--) {
+          cuts[k] = Infinity;
+          if (!ok(cuts, true)) continue;
+          let lo = 0, hi = spans[k];
+          for (let it = 0; it < 7; it++) { const mid = (lo + hi) / 2; cuts[k] = mid; if (ok(cuts, true)) hi = mid; else lo = mid; }
+          cuts[k] = Math.min(spans[k], Math.ceil(hi * 2) / 2);
+          break;
+        }
+        for (let n = 0; n < 24 && !ok(cuts, false); n++) {
+          let t = -1; for (let k = 0; k < cuts.length; k++) if (isFinite(cuts[k]) && cuts[k] < spans[k]) t = k;
+          if (t < 0) break;
+          cuts[t] += 0.5;
+        }
+        if (ok(cuts, false)) cands.push(cuts);
+      })();
+      let best = null, bestA = -1;
+      cands.forEach(function (c) {
+        if (!c) return;
+        const fl = build(c), a = fl.reduce(function (t, f) { return t + f.area; }, 0);
+        if (a > bestA + 1e-6) { bestA = a; best = { cuts: c, floors: fl }; }
+      });
+      if (!best || !best.floors.length) return null;
+      const list = [];
+      floors.forEach(function (f, k) {
+        if (k >= best.floors.length) list.push({ floor: f.floor, removed: true });
+        else if (best.cuts[k] > 0) list.push({ floor: f.floor, cut: Math.min(best.cuts[k], spans[k]) });
+      });
+      return { floors: best.floors, cuts: list };
+    }
+
+
+    // 日影を満たしつつ、できるだけ大きく残すように、1m角のブロック単位で自動的に削る
+    function shadeFitVoxel(S, floors, nvec, fl1, floorH) {
+      const P = shadeParams(), c = 1.0, L = floors.length;
+      let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+      floors.forEach(function (f) { f.polys.forEach(function (p) { const bb = polyBBox(p); x0 = Math.min(x0, bb.x0); x1 = Math.max(x1, bb.x1); z0 = Math.min(z0, bb.z0); z1 = Math.max(z1, bb.z1); }); });
+      const nx = Math.max(1, Math.ceil((x1 - x0) / c - 1e-9)), nz = Math.max(1, Math.ceil((z1 - z0) / c - 1e-9)), NN = nx * nz;
+      const ccw = function (p) { return polyArea(p) < 0 ? p.slice().reverse() : p; };
+      const cellRect = function (i, j) { return [{ x: x0 + i * c, z: z0 + j * c }, { x: x0 + (i + 1) * c, z: z0 + j * c }, { x: x0 + (i + 1) * c, z: z0 + (j + 1) * c }, { x: x0 + i * c, z: z0 + (j + 1) * c }]; };
+      const keep = floors.map(function (f) {
+        const a = new Uint8Array(NN), polys = f.polys.map(ccw);
+        for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+          const r = cellRect(i, j);
+          for (let q = 0; q < polys.length; q++) { if (absArea(clipByConvex(r, polys[q])) > 1e-4) { a[j * nx + i] = 1; break; } }
+        }
+        return a;
+      });
+      const count = function (k) { let n = 0; for (let t = 0; t < NN; t++) n += keep[k][t]; return n; };
+      const initCount = floors.map(function (_, k) { return count(k); });
+      const lo = function (k) { return floors[k].floor === 1 ? 0 : fl1 + (floors[k].floor - 1) * floorH; };
+      const hi = function (k) { return fl1 + floors[k].floor * floorH; };
+      // ブロックを行ごとにまとめて長方形にする
+      const rectsOf = function (k) {
+        const rows = [];
+        for (let j = 0; j < nz; j++) {
+          let i = 0;
+          while (i < nx) {
+            if (!keep[k][j * nx + i]) { i++; continue; }
+            let e = i; while (e + 1 < nx && keep[k][j * nx + e + 1]) e++;
+            rows.push({ i0: i, i1: e + 1, j0: j, j1: j + 1 }); i = e + 1;
+          }
+        }
+        rows.sort(function (a, b) { return a.i0 - b.i0 || a.i1 - b.i1 || a.j0 - b.j0; });
+        const out = [];
+        rows.forEach(function (r) {
+          const last = out[out.length - 1];
+          if (last && last.i0 === r.i0 && last.i1 === r.i1 && last.j1 === r.j0) last.j1 = r.j1; else out.push({ i0: r.i0, i1: r.i1, j0: r.j0, j1: r.j1 });
+        });
+        return out.map(function (r) { return { x0: x0 + r.i0 * c, x1: x0 + r.i1 * c, z0: z0 + r.j0 * c, z1: z0 + r.j1 * c }; });
+      };
+      const fullPrisms = function () {
+        const out = [];
+        for (let k = 0; k < L; k++) { const rs = rectsOf(k); if (rs.length) out.push({ lo: lo(k), hi: hi(k), polys: rs.map(rectToPoly) }); }
+        return out;
+      };
+      const evalRes = function (prisms, fine) {
+        return computeShade({ t0: P.t0, t1: P.t1, S: S, floors: prisms, nvec: nvec, lat: P.lat, planeH: P.planeH, limits: { near: P.tt[0], far: P.tt[1] },
+          step: fine ? 0.5 : 1.0, dt: fine ? 5 / 60 : 10 / 60, fast: true });
+      };
+      const isOk = function (r) { return r.maxNear <= P.tt[0] + 1e-6 && r.maxFar <= P.tt[1] + 1e-6; };
+      // 太陽の向き（光線）
+      const east = { x: nvec.nz, z: -nvec.nx }, north = { x: nvec.nx, z: nvec.nz };
+      const rays = function (dt) {
+        const out = [];
+        for (let t = P.t0 + dt / 2; t < P.t1; t += dt) {
+          const s = sunDirAt(P.lat, t);
+          if (s.u > 0.02) out.push({ kx: (s.e * east.x + s.n * north.x) / s.u, kz: (s.e * east.z + s.n * north.z) / s.u });
+        }
+        return out;
+      };
+      const removeColumn = function (k, t) { for (let q = k; q < L; q++) keep[q][t] = 0; };
+      const blameStep = function (res, dt) {
+        const lim = res.lim, viol = [];
+        for (let j = 0; j < res.nz; j++) for (let i = 0; i < res.nx; i++) {
+          const idx = j * res.nx + i, d = res.dist[idx];
+          if (d <= 5 || d > 32) continue;
+          if (res.hrs[idx] > (d <= 10 ? lim.near : lim.far) + 1e-6) viol.push({ x: res.x0 + i * res.step, z: res.z0 + j * res.step });
+        }
+        if (!viol.length) return 0;
+        const stepV = Math.max(1, Math.ceil(viol.length / 350)), ks = rays(dt), blame = new Int32Array(L * NN);
+        for (let v = 0; v < viol.length; v += stepV) {
+          const px = viol[v].x, pz = viol[v].z;
+          ks.forEach(function (r) {
+            for (let k = L - 1; k >= 0; k--) {
+              const h1 = hi(k);
+              if (h1 <= P.planeH) break;
+              const ya = Math.max(lo(k), P.planeH), n = Math.max(2, Math.ceil(Math.hypot((h1 - ya) * r.kx, (h1 - ya) * r.kz) / 0.25));
+              let hit = -1;
+              for (let s = n; s >= 0; s--) {
+                const y = ya + (h1 - ya) * s / n, qx = px + (y - P.planeH) * r.kx, qz = pz + (y - P.planeH) * r.kz;
+                const ci = Math.floor((qx - x0) / c), cj = Math.floor((qz - z0) / c);
+                if (ci < 0 || cj < 0 || ci >= nx || cj >= nz) continue;
+                if (keep[k][cj * nx + ci]) { hit = cj * nx + ci; break; }
+              }
+              if (hit >= 0) { blame[k * NN + hit]++; break; }
+            }
+          });
+        }
+        let mx = 0, cand = 0;
+        for (let t = 0; t < blame.length; t++) { if (blame[t] > mx) mx = blame[t]; if (blame[t] > 0) cand++; }
+        if (!mx) return 0;
+        const th = Math.max(1, Math.ceil(mx * 0.7)), list = [];
+        for (let t = 0; t < blame.length; t++) if (blame[t] >= th) list.push(t);
+        list.sort(function (a, b) { return blame[b] - blame[a]; });
+        const take = Math.max(1, Math.min(list.length, Math.ceil(cand * 0.15), 12));
+        for (let q = 0; q < take; q++) { const k = Math.floor(list[q] / NN); removeColumn(k, list[q] % NN); }
+        return take;
+      };
+      const t0 = Date.now();
+      let r = evalRes(fullPrisms(), false);
+      if (isOk(r) && isOk(evalRes(fullPrisms(), true))) return { floors: null, noChange: true };
+      let it = 0;
+      for (; it < 400 && Date.now() - t0 < 25000; it++) {
+        if (isOk(r)) break;
+        if (!blameStep(r, 10 / 60)) break;
+        r = evalRes(fullPrisms(), false);
+      }
+      for (let n = 0; n < 60 && Date.now() - t0 < 40000; n++) {          // 細かい刻みで最終確認
+        const rf = evalRes(fullPrisms(), true);
+        if (isOk(rf)) break;
+        if (!blameStep(rf, 5 / 60)) break;
+      }
+      // 見た目の整理：削った階について、細い部分（2m角が入らない所）と、離れた小さな塊をなくす（削るだけなので日影は増えない）
+      for (let k = 0; k < L; k++) {
+        if (count(k) === 0) break;
+        if (count(k) !== initCount[k]) {
+          const a = keep[k], t = new Uint8Array(NN);
+          for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) {
+            if (a[j * nx + i] && a[j * nx + i + 1] && a[(j + 1) * nx + i] && a[(j + 1) * nx + i + 1]) { t[j * nx + i] = t[j * nx + i + 1] = t[(j + 1) * nx + i] = t[(j + 1) * nx + i + 1] = 1; }
+          }
+          // 最大の塊だけ残す
+          const lab = new Int32Array(NN); let best = 0, bestN = 0, cur = 0;
+          for (let s0 = 0; s0 < NN; s0++) {
+            if (!t[s0] || lab[s0]) continue;
+            cur++; let n = 0; const st = [s0]; lab[s0] = cur;
+            while (st.length) {
+              const v = st.pop(); n++;
+              const vi = v % nx, vj = (v - vi) / nx;
+              [[vi - 1, vj], [vi + 1, vj], [vi, vj - 1], [vi, vj + 1]].forEach(function (q) {
+                if (q[0] < 0 || q[1] < 0 || q[0] >= nx || q[1] >= nz) return;
+                const w = q[1] * nx + q[0];
+                if (t[w] && !lab[w]) { lab[w] = cur; st.push(w); }
+              });
+            }
+            if (n > bestN) { bestN = n; best = cur; }
+          }
+          for (let v = 0; v < NN; v++) a[v] = (lab[v] === best && best > 0) ? 1 : 0;
+        }
+        for (let q = k + 1; q < L; q++) for (let v = 0; v < NN; v++) keep[q][v] = keep[q][v] & keep[k][v];
+      }
+      // 結果の形：削っていない階は元の形のまま、削った階は元の形とブロックの重なり
+      const out = [];
+      for (let k = 0; k < L; k++) {
+        let polys;
+        if (count(k) === 0) break;
+        if (count(k) === initCount[k]) polys = floors[k].polys;
+        else {
+          polys = [];
+          const orig = floors[k].polys.map(ccw);
+          rectsOf(k).forEach(function (rc) {
+            orig.forEach(function (op) { const q = cleanPoly(clipByConvex(rectToPoly(rc), op)); if (q.length >= 3 && absArea(q) > 0.05) polys.push(q); });
+          });
+        }
+        const a = totalArea(polys);
+        if (a < 5) break;
+        const sh = floorShape(polys);
+        out.push({ floor: floors[k].floor, polys: sh.polys, text: sh.text, area: a, rect: sh.rect });
+      }
+      if (!out.length) return null;
+      const chk = computeShade({ t0: P.t0, t1: P.t1, S: S, floors: shadePrisms(out, fl1, floorH), nvec: nvec, lat: P.lat, planeH: P.planeH, limits: { near: P.tt[0], far: P.tt[1] }, fast: true });
+      if (!isOk(chk)) return null;
+      const areas = floors.map(function (f, k) { return { floor: f.floor, before: f.area, after: k < out.length ? out[k].area : 0 }; }).filter(function (a) { return Math.abs(a.after - a.before) > 0.05; });
+      return { floors: out, cuts: [], areas: areas };
+    }
+
+    // 自動で削る方式と北側後退方式を両方試して、残る延床面積が大きいほうを使う
+    function shadeFitBest(S, floors, nvec, fl1, floorH, cutVec) {
+      const a = shadeFitVoxel(S, floors, nvec, fl1, floorH);
+      if (a && a.noChange) return a;
+      const b = shadeFitFloors(S, floors, nvec, fl1, floorH, cutVec);
+      const area = function (r) { return r && r.floors ? r.floors.reduce(function (t, f) { return t + f.area; }, 0) : -1; };
+      return area(b) > area(a) + 1e-6 ? b : a;
+    }
+
+    function runShade(S, floors, nvec, fl1, floorH, fitInfo) {
+      const box = document.getElementById('shadeResult');
+      if (!document.getElementById('shadeOn').checked) { box.innerHTML = ''; return null; }
+      if (!floors.length) { box.innerHTML = ''; return null; }
+      const P = shadeParams(), tt = P.tt, lat = P.lat, diff = P.diff, planeH = P.planeH, t0 = P.t0, t1 = P.t1;
+      const fl = shadePrisms(floors, fl1, floorH);
+      const res = computeShade({ t0: t0, t1: t1, S: S, floors: fl, nvec: nvec, lat: lat, planeH: planeH, limits: { near: tt[0], far: tt[1] } });
+      const top = fl1 + floors.length * floorH;
+      const zkey = document.getElementById('zoning').value, kind = SHADE_PRESET[zkey] ? SHADE_PRESET[zkey].kind : null;
+      let target = '', targetOut = false;
+      if (kind === 'low') target = (top > 7 || floors.length >= 3) ? '対象建築物の規模（軒高7m超または地上3階建て以上）に当たる見込みです。' : '軒高7m以下かつ2階建て以下の見込みで、規模要件では対象外になる可能性があります。';
+      else if (kind === 'high') target = top > 10 ? '対象建築物の規模（高さ10m超）に当たる見込みです。' : '高さ10m以下の見込みで、規模要件では対象外になる可能性があります。';
+      if (kind) targetOut = /対象外/.test(target);
+      const ok = res.maxNear <= tt[0] + 1e-6 && res.maxFar <= tt[1] + 1e-6;
+      const f1 = function (n) { return (Math.round(n * 10) / 10).toFixed(1); };
+      let h = '<div class="plan shadecard"><div class="pt">日影規制の検討（冬至日 真太陽時' + t0 + '〜' + t1 + '時）</div>';
+      h += '<div class="shade-sum ' + (ok ? 'ok' : 'ng') + '">' + (ok ? (fitInfo ? '適合（日影を満たすよう調整した形）' : '適合（今のボリュームで規制時間内）') : '超過あり（今のボリュームでは規制時間を超えます）') + '</div>';
+      if (targetOut) h += '<div class="shade-out">⚠ ' + target + '（軒高・高さ・階数を確認してください）</div>';
+      h += shadeSvg(res, S, floors, nvec);
+      h += '<div class="shade-legend"><span><i style="background:#fcd34d"></i>日影（色が濃いほど長い）</span><span><i style="background:#dc2626"></i>規制時間超過</span><span><i style="border:1px dashed #64748b;background:#fff"></i>5m・10mライン</span><span><i style="border:2px solid #b91c1c;background:#fff"></i>規制時間の等時間線</span></div>';
+      h += '<table class="ftable shadetbl"><tbody>';
+      h += '<tr><td>5m超10m以内</td><td class="num">最大 ' + f1(res.maxNear) + ' h</td><td>規制 ' + tt[0] + ' h</td></tr>';
+      h += '<tr><td>10m超</td><td class="num">最大 ' + f1(res.maxFar) + ' h</td><td>規制 ' + tt[1] + ' h</td></tr>';
+      h += '</tbody></table>';
+      if (!ok) h += '<div class="warn">規制を超える範囲：約 ' + Math.round(res.exceedArea) + '㎡（図の赤い部分。丸印が最も超えている付近です）。</div>';
+      if (!ok && !fitInfo) {
+        h += '<div class="shade-fit"><button type="button" class="shadebtn" onclick="shadeFitRun(\'cut\')">日影を満たす形にする（階ごとに北側を後退）</button><button type="button" class="shadebtn" style="margin-top:6px" onclick="shadeFitRun(\'voxel\')">日影を満たしつつ、できるだけ大きく残す（自動で細かく削る）</button><div class="shade-note" style="margin:4px 0 0">後者は1m角のブロックで、北側だけでなく東西の角なども削ります。数秒〜数十秒かかることがあります。</div>' + (shadeFitMsg ? '<div class="warn">' + shadeFitMsg + '</div>' : '') + '</div>';
+      }
+      if (fitInfo) {
+        let li = fitInfo.areas ? (fitInfo.areas.length ? fitInfo.areas.map(function (a) { return a.floor + 'F：' + f1(a.before) + '→' + f1(a.after) + '㎡'; }).join('、') : '（調整なし）') : fitInfo.cuts.length ? fitInfo.cuts.map(function (c) { return c.removed ? c.floor + 'F：なし' : c.floor + 'F：北側を ' + f1(c.cut) + 'm 後退'; }).join('、') : '（調整なし）';
+        h += '<div class="shade-fit"><div class="shade-note" style="margin:0 0 6px">調整内容：' + li + '<br>延床面積 ' + f1(fitInfo.before) + '㎡ → ' + f1(fitInfo.after) + '㎡（' + f1(fitInfo.after - fitInfo.before) + '㎡）</div><button type="button" class="shadebtn sub" onclick="shadeFitReset()">最大ボリュームに戻す</button></div>';
+      }
+      h += '<div class="shade-note">条件：測定面 GL＋' + f1(planeH) + 'm' + (diff >= 1 ? '（隣地との高低差 ' + f1(diff) + 'm の補正後）' : '') + '／北緯 ' + lat + '°／規制 ' + tt[0] + 'h−' + tt[1] + 'h。道路などに接する辺は、幅の1/2（幅10m超は反対側から5m）だけ外側を敷地境界線とみなしています。' + (target && !targetOut ? '<br>' + target : '') + (fitInfo ? (fitInfo.areas ? '<br>1m角のブロックを単位に、日影が規制時間内になるよう自動で削った形です（図面の線は、元の敷地・斜線の形に合わせて整えています）。' : '<br>北側を階ごとに後退させて、日影が規制時間内になるようにした形です。') : '<br>建築可能なボリュームを最大に建てた場合の確認です。')+'実際の申請では、対象区域・規制時間・測定面の高さを自治体の条例で確認し、日影図で検証してください。</div>';
+      h += '</div>';
+      box.innerHTML = h;
+      return { ok: ok, maxNear: res.maxNear, maxFar: res.maxFar };
+    }
+
+    /* ================= 計算 ================= */
+    function readEdges() {
+      const gv = function (id) { return parseFloat(document.getElementById(id).value); };
+      return [{ type: 'road', width: gv('road') || 0, level: gv('roadLevel') || 0, park: Math.max(0, gv('park_front') || 0), setback: gv('setback') || 0 }].concat(
+        edgesState.slice(1).map(function (e) {
+          return { type: e.type, width: e.width > 0 ? e.width : 0, level: e.level || 0, park: Math.max(0, e.park || 0), setback: Math.max(0, e.setback || 0) };
+        }));
+    }
+
+    function calculate() {
+      try {
+        const gv = function (id) { return parseFloat(document.getElementById(id).value); };
+        const bldgWInput = gv('bldgWidth');
+        const bldgDInput = gv('bldgDepth');
+        const coverage = gv('coverage');
+        const far = gv('far');
+        const road = gv('road');
+        const setback = gv('setback') || 0;
+        const roadLevel = gv('roadLevel') || 0;
+        const parkFront = Math.max(0, gv('park_front') || 0);
+        const fl1 = gv('fl1') || 0.5;
+        const floorH = gv('floorHeight') || 3.0;
+        const zoningKey = document.getElementById('zoning').value;
+        const absInput = gv('absHeightInput');
+        const heightKind = document.getElementById('heightDistrict').value;
+        const heightRise = gv('heightRise');
+        const heightSlopeIn = gv('heightSlope');
+        const stage2Mode = document.getElementById('heightStage2Mode').value;
+        const stage2At = gv('heightStage2At');
+        const slope2In = gv('heightSlope2');
+        const judgeTop = document.getElementById('judgeMode').value !== 'bottom';
+        const roadDegVal = parseFloat(document.getElementById('roadDeg').value);
+        const nvec = northVec(isFinite(roadDegVal) ? roadDegVal : 180);
+
+        // 未入力のチェック
+        const need = [];
+        if (!poly) need.push(['width', '敷地の形（左右の幅と前後の奥行、または座標）']);
+        if (!road) need.push(['road', '前面（手前）の道路幅員']);
+        if (poly) {
+          edgesState.forEach(function (e, i) {
+            if (i > 0 && e.type === 'road' && !(e.width > 0)) need.push(['ew_' + i, edgeName(i) + 'の道路幅員']);
+          });
+        }
+        if (heightKind === 'custom') {
+          if (isNaN(heightRise)) need.push(['heightRise', '高度斜線の立ち上がり']);
+          if (!(heightSlopeIn > 0)) need.push(['heightSlope', '高度斜線の勾配']);
+        }
+        const showNeed = function (msg, focusId) {
+          const box = document.getElementById('result');
+          box.style.display = 'block';
+          document.getElementById('summary').innerHTML = '';
+          document.getElementById('floorPlans').innerHTML = '';
+          document.getElementById('floorAreas').innerHTML = '<div class="warn">' + msg + '</div>';
+          const target = focusId && document.getElementById(focusId);
+          if (target) { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); target.focus({ preventScroll: true }); }
+        };
+        if (need.length) { showNeed('未入力です：' + need.map(function (x) { return x[1]; }).join('、') + '。該当の欄に入力してください。', need[0][0]); return; }
+        if (!polyIsSimple(poly) || !(polyArea(poly) > 0.5)) {
+          showNeed('敷地の辺が交差しているか、面積が小さすぎます。図の点を動かして形を直してください。', null); return;
+        }
+
+        // 辺ごとの設定
+        const edges = readEdges();
+        const roadEdges = edges.map(function (e, i) { return { e: e, i: i }; }).filter(function (x) { return x.e.type === 'road'; });
+        const maxRoadW = Math.max.apply(null, roadEdges.map(function (x) { return x.e.width; }));
+
+        // 建ぺい率：法定 + 角地 + 防火（法53条）
+        const covLegal = coverage || 60;
+        const farLegal = far || 200;
+        document.getElementById('coverage').value = covLegal;
+        document.getElementById('far').value = farLegal;
+        const cornerLot = document.getElementById('cornerMode').value === 'on';
+        const fireMode = document.getElementById('fireMode').value;
+        let coverageUse = covLegal;
+        let coverageNote = '';
+        const covParts = ['法定' + covLegal + '%'];
+        if (fireMode === 'fire' && covLegal === 80) {
+          coverageUse = 100;
+          covParts.push('防火地域の耐火建築物等で制限なし');
+        } else {
+          if (cornerLot) { coverageUse += 10; covParts.push('角地10%'); }
+          if (fireMode === 'fire') { coverageUse += 10; covParts.push('耐火10%'); }
+          else if (fireMode === 'quasi') { coverageUse += 10; covParts.push('耐火・準耐火10%'); }
+        }
+        if (coverageUse > 100) { coverageUse = 100; covParts.push('上限100%'); }
+        const covText = covParts.length > 1 ? covParts.join('＋') + '＝' + coverageUse + '%' : '法定' + covLegal + '%';
+        if (covParts.length > 1) coverageNote = '（' + covText + '）';
+
+        // 容積率：法定と、前面道路幅員による制限（法52条2項）の小さい方
+        let farUse = farLegal;
+        let farNote = '';
+        let farText = '法定' + farLegal + '%';
+        if (document.getElementById('farRoadMode').value === 'on' && zoningKey && maxRoadW < 12) {
+          const resType = ['1low', '2low', 'rural', '1mid', '2mid', '1res', '2res', 'quasi'].indexOf(zoningKey) >= 0;
+          const k = resType ? 0.4 : 0.6;
+          const tL = gv('tokuteiDist');
+          let effW = maxRoadW, tokText = '';
+          if (tL >= 0 && tL < 70 && maxRoadW >= 6 && isFinite(tL)) {
+            const wa = (12 - maxRoadW) * (70 - tL) / 70;
+            effW = maxRoadW + wa;
+            tokText = '（特定道路 ' + tL + 'm：+' + wa.toFixed(2) + 'm）';
+          } else if (tL > 0 && maxRoadW < 6) {
+            tokText = '（前面道路が6m未満のため特定道路の緩和なし）';
+          }
+          const lim = Math.round(effW * k * 1000) / 10;
+          farText = '法定' + farLegal + '% ／ 道路幅員 ' + (tokText && effW !== maxRoadW ? effW.toFixed(2) : maxRoadW) + 'm' + tokText + '×' + k + '＝' + lim + '%';
+          if (lim < farLegal) { farUse = lim; farNote = '（道路幅員で' + lim + '%に制限）'; farText += ' → ' + lim + '%を採用'; }
+          else farText += ' → 法定の方が小さいので法定を採用';
+        } else if (document.getElementById('farRoadMode').value === 'on' && !zoningKey && maxRoadW < 12) {
+          farText = '法定' + farLegal + '%（用途地域が未選択のため道路幅員制限は未適用）';
+        }
+
+        const z = (zoningKey && zoningData[zoningKey])
+          ? zoningData[zoningKey]
+          : { slope: 1.25, absHeight: null, northStart: null, northSlope: null };
+        const slope = z.slope;
+        let absHeight = z.absHeight;
+        if (!isNaN(absInput) && absInput > 0) {
+          absHeight = absHeight !== null ? Math.min(absHeight, absInput) : absInput;
+        }
+        const siteArea = absArea(poly);
+        const maxBuildingArea = siteArea * (coverageUse / 100);
+        const maxTotalFloor = siteArea * (farUse / 100);
+        const applyDist = applyDistance(zoningKey, farLegal);
+
+        // 高度地区
+        let heightRules = [];
+        let heightWarn = '';
+        let heightLabel = 'なし';
+        if (heightKind === 'h1') { heightRules = [{ start: 5, slope: 0.6 }]; heightLabel = '第一種 5m＋0.6'; }
+        else if (heightKind === 'h2') { heightRules = [{ start: 5, slope: 1.25 }, { start: 10.2, slope: 0.6 }]; heightLabel = '第二種'; }
+        else if (heightKind === 'h3') { heightRules = [{ start: 10, slope: 1.25 }, { start: 15.2, slope: 0.6 }]; heightLabel = '第三種'; }
+        else if (heightKind === 'custom' && !isNaN(heightRise) && heightSlopeIn > 0) {
+          heightRules = [{ start: heightRise, slope: heightSlopeIn }];
+          heightLabel = '手入力 ' + heightRise + 'm＋' + heightSlopeIn;
+          if (stage2Mode !== 'none') {
+            const dBreak = stage2Mode === 'height' ? (stage2At - heightRise) / heightSlopeIn : stage2At;
+            const hBreak = heightRise + heightSlopeIn * dBreak;
+            if (!(stage2At > 0) || !(slope2In > 0)) {
+              heightWarn = '高度斜線の2段目は、切り替わる位置と勾配の両方が必要です。2段目は使わずに計算しています。';
+            } else if (!(dBreak > 0)) {
+              heightWarn = '切り替わる位置が1段目の立ち上がりより低い（または境界上）ため、2段目は使わずに計算しています。';
+            } else if (slope2In >= heightSlopeIn) {
+              heightWarn = '2段目の勾配は1段目より緩やかな場合だけ対応しています。2段目は使わずに計算しています。';
+            } else {
+              heightRules.push({ start: hBreak - slope2In * dBreak, slope: slope2In });
+              heightLabel += '／' + (stage2Mode === 'height' ? '高さ' + stage2At + 'm超' : '境界から' + stage2At + 'm超') + 'は勾配' + slope2In + '（高さ' + hBreak.toFixed(1) + 'm・境界から' + dBreak.toFixed(1) + 'mで切替）';
+            }
+          }
+        }
+
+        const S = {
+          pts: poly, edges: edges, slope: slope, applyDist: applyDist, levelEff: levelEff,
+          north: { enabled: z.northStart !== null, nx: nvec.nx, nz: nvec.nz, start: z.northStart || 5, slope: z.northSlope || 1.25 },
+          heightRules: heightRules,
+          adj: { enabled: z.adjStart != null, start: z.adjStart || 20, slope: z.adjSlope || 1.25 }
+        };
+
+        if (bldg && (!polyIsSimple(bldg) || absArea(bldg) < 0.5)) {
+          showNeed('建物の辺が交差しているか、面積が小さすぎます。図のオレンジの点を動かして直してください。', null); return;
+        }
+        const fp = bldg ? footprintFromBldg(S, bldg) : footprintOf(S, 0, 0);
+        if (fp.length < 3 || absArea(fp) < 0.5) {
+          showNeed('離れ・後退距離を差し引くと、建物を建てられる範囲が残りません。入力を見直してください。', null); return;
+        }
+        const gaps = gapsOf(S, fp);
+        const pieces = makePieces(S, fp, gaps);
+        const fpBB = polyBBox(fp);
+        const floors = [];
+        const fitReq = shadeFitPending; shadeFitPending = false;
+        let remaining = maxTotalFloor;
+        let zcut = fpBB.z1;
+
+        for (let f = 1; f <= 15 && remaining > 1; f++) {
+          const topH = fl1 + f * floorH;
+          if (absHeight !== null && topH > absHeight + 1e-6) break;
+          const h = judgeTop ? topH : fl1 + (f - 1) * floorH;
+          let polys = floorPolys(pieces, h);
+          if (f === 1) zcut = fitAreaP(polys, fpBB.z0, fpBB.z1, maxBuildingArea);
+          polys = clipRearP(polys, zcut);
+          let a = totalArea(polys);
+          let farZ = null;
+          if (a > remaining) {
+            farZ = fitAreaP(polys, fpBB.z0, zcut, remaining);
+            polys = clipRearP(polys, farZ);
+            a = totalArea(polys);
+          }
+          if (a < 5) break;
+          const shape = floorShape(polys);
+          floors.push({ floor: f, polys: shape.polys, text: shape.text, area: a, rect: shape.rect, farZ: farZ });
+          remaining -= a;
+        }
+        const fpFinal = cleanPoly(clipHalf(fp, 0, -1, -Math.max(zcut, fpBB.z0 + 1)));
+        let fitInfo = null;
+        shadeFitMsg = '';
+        if (fitReq && document.getElementById('shadeOn').checked && floors.length) {
+          const before = floors.reduce(function (s, f) { return s + f.area; }, 0);
+          const fr = fitReq === 'voxel' ? shadeFitBest(S, floors, nvec, fl1, floorH) : shadeFitFloors(S, floors, nvec, fl1, floorH);
+          if (!fr) shadeFitMsg = 'この敷地・条件では、規制を満たす形を作れませんでした（低い階だけでも規制を超えます）。測定面・規制時間・敷地の形を見直してください。';
+          else if (fr.noChange) shadeFitMsg = '調整は不要でした。';
+          else {
+            floors.splice(0, floors.length);
+            fr.floors.forEach(function (f) { floors.push(f); });
+            fitInfo = { cuts: fr.cuts, areas: fr.areas, before: before, after: fr.floors.reduce(function (s, f) { return s + f.area; }, 0) };
+          }
+        }
+
+        const actualBuildingArea = floors[0] ? floors[0].area : 0;
+        const actualTotalFloor = floors.reduce(function (s, f) { return s + f.area; }, 0);
+        const simCoverage = (actualBuildingArea / siteArea) * 100;
+        const simFAR = (actualTotalFloor / siteArea) * 100;
+
+        const tile = function (label, value, sub) {
+          return '<div class="tile"><div class="tl">' + label + '</div><div class="tv">' + value + '</div><div class="ts">' + sub + '</div></div>';
+        };
+        document.getElementById('summary').innerHTML =
+          tile('延床面積', actualTotalFloor.toFixed(1) + '<small>㎡</small>', '上限 ' + maxTotalFloor.toFixed(1) + '㎡') +
+          tile('建築面積', actualBuildingArea.toFixed(1) + '<small>㎡</small>', '上限 ' + maxBuildingArea.toFixed(1) + '㎡' + coverageNote) +
+          tile('建ぺい率', simCoverage.toFixed(1) + '<small>%</small>', '上限 ' + coverageUse + '%') +
+          tile('容積率', simFAR.toFixed(1) + '<small>%</small>', '上限 ' + farUse + '%' + farNote) +
+          tile('階数', floors.length + '<small>階</small>', '敷地 ' + siteArea.toFixed(1) + '㎡');
+
+        let html = '';
+        if (floors.length) {
+          html += '<table class="ftable"><thead><tr><th>階</th><th>面積</th><th>内訳（間口×奥行）</th></tr></thead><tbody>';
+          floors.forEach(function (f) {
+            html += '<tr><td>' + f.floor + 'F</td><td class="num">' + f.area.toFixed(1) + '㎡</td><td>' + f.text + '</td></tr>';
+          });
+          html += '<tr class="total"><td>計</td><td class="num">' + actualTotalFloor.toFixed(1) + '㎡</td><td></td></tr></tbody></table>';
+        }
+        if (heightWarn) html += '<div class="warn">' + heightWarn + '</div>';
+        if (hasReflex(poly)) html += '<div class="warn">敷地に凹んだ角（内角180°超）があります。離れ・斜線の測り方は近似になるため、結果は目安として確認してください。</div>';
+        document.getElementById('floorAreas').innerHTML = html;
+
+        const ctx = { poly: poly, edges: edges, nvec: nvec };
+        let plans = '';
+        floors.forEach(function (f) {
+          plans += '<div class="plan"><div class="pt">' + f.floor + 'F (' + f.area.toFixed(1) + '㎡)</div>' + planSvg(f.polys, ctx, f.rect) + '</div>';
+        });
+        document.getElementById('floorPlans').innerHTML = plans;
+        try {
+          const sh = runShade(S, floors, nvec, fl1, floorH, fitInfo);
+          if (sh) document.getElementById('summary').insertAdjacentHTML('beforeend', tile('日影規制', sh.ok ? '適合' : '超過', '5〜10m ' + (Math.round(sh.maxNear * 10) / 10) + 'h／10m超 ' + (Math.round(sh.maxFar * 10) / 10) + 'h'));
+        } catch (err) { console.error(err); document.getElementById('shadeResult').innerHTML = '<div class="warn">日影の計算でエラー: ' + err.message + '</div>'; }
+
+        const gapsText = edges.map(function (e, i) { return e.type === 'neighbor' ? edgeName(i).replace(/（.*?）/, '') + ' ' + gaps[i].toFixed(1) + 'm' : null; }).filter(function (x) { return x; }).join('・');
+        const otherRoads = roadEdges.filter(function (x) { return x.i > 0; });
+        const roadsText = '前面 ' + road + 'm' + (parkFront ? '＋公園等' + parkFront + 'm' : '') + otherRoads.map(function (x) {
+          return '／' + edgeName(x.i).replace(/（.*?）/, '') + ' ' + x.e.width + 'm' + (x.e.park ? '＋公園等' + x.e.park + 'm' : '') + (x.e.level ? '（高低差' + x.e.level + 'm）' : '');
+        }).join('') + (edges.some(function (e) { return e.type === 'corner'; }) ? '／隅切りあり' : '');
+        lastReport = {
+          site: poly.length + '点の敷地　面積 ' + siteArea.toFixed(2) + '㎡' + (poly.length === 4 && !polyCustom ? '（間口 ' + (poly[1].x - poly[0].x).toFixed(2) + 'm × 奥行 ' + poly[3].z.toFixed(2) + 'm）' : ''),
+          roads: roadsText
+        };
+
+        document.getElementById('slopeRatio').textContent = slope;
+        document.getElementById('applyDistText').textContent = applyDist != null ? (applyDist + 'm（各道路の反対側の境界から。法定容積率 ' + farLegal + '%）') : '用途地域が未選択のため、距離の制限なし';
+        document.getElementById('heightLimit').textContent = ((road + parkFront + setback) * slope).toFixed(2);
+        document.getElementById('absHeight').textContent = absHeight !== null ? absHeight + ' m' : 'なし';
+        document.getElementById('heightRuleText').textContent = heightLabel;
+        document.getElementById('adjRuleText').textContent = z.adjStart != null ? (z.adjStart + 'm＋' + z.adjSlope + '／後退緩和：' + (gapsText || 'なし') + ' ぶん境界を外側とみなす') : 'なし';
+        document.getElementById('judgeText').textContent = judgeTop ? '各階の上端高さ' : '各階床高さ';
+        document.getElementById('northRuleText').textContent = z.northStart !== null ? (z.northStart + 'm + ' + z.northSlope + '（北側が隣地の辺は、離れぶん後退緩和）') : 'なし';
+        document.getElementById('road2RuleText').textContent = otherRoads.length ? otherRoads.map(function (x) {
+          return edgeName(x.i).replace(/（.*?）/, '') + ' ' + x.e.width + 'm' + (x.e.park ? '＋公園等' + x.e.park + 'm' : '') + (x.e.level ? '（高低差' + x.e.level + 'm）' : '');
+        }).join('、') + '／複数道路の緩和（令132条）を自動適用' : 'なし';
+        document.getElementById('covRuleText').textContent = covText;
+        document.getElementById('farRuleText').textContent = farText;
+
+        document.getElementById('result').style.display = 'block';
+        document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        try {
+          lastUpd3D = function () { update3D(S, gaps, fpFinal, floors, fl1, floorH, nvec, !!fitInfo); };
+          lastUpd3D();
+          snap3D();
+        } catch (err) {
+          console.error(err);
+        }
+      } catch (err) {
+        document.getElementById('result').style.display = 'block';
+        document.getElementById('floorAreas').innerHTML = '計算エラー: ' + err.message;
+      }
+    }
+
+    let lastUpd3D = null;
+    let shadeFitPending = false, shadeFitMsg = '';
+    function shadeFitRun(mode) {
+      document.querySelectorAll('.shadebtn').forEach(function (b) { b.disabled = true; b.textContent = '計算中…'; });
+      setTimeout(function () { shadeFitPending = mode || 'cut'; calculate(); }, 40);
+    }
+    function shadeFitReset() { shadeFitPending = false; calculate(); }
+
+    /* ================= 起動 ================= */
+    initCompass();
+    document.getElementById('zoning').addEventListener('change', shadePreset);
+    shadeCityInit();
+    document.getElementById('stairMode').addEventListener('change', function () { if (lastUpd3D) { try { lastUpd3D(); snap3D(); } catch (e) { console.error(e); } } });
+    initEdgeCards();
+    initEditor();
+    initTable();
+    (function () {
+      const w = document.getElementById('width'), d = document.getElementById('depth');
+      [w, d].forEach(function (el) {
+        el.addEventListener('input', function () { if (!(poly && polyCustom)) onDimInput(); });
+        el.addEventListener('change', onDimInput);
+      });
+      document.getElementById('road').addEventListener('input', function () { if (poly) renderEditor(true); });
+      ['bldgWidth', 'bldgDepth'].forEach(function (id) { document.getElementById(id).addEventListener('change', placeBldgRect); });
+      window.addEventListener('resize', function () { if (poly) renderEditor(true); });
+    })();
+    renderAll();
+
+window.__appLoaded = true;
+
+  </script>
+</body>
+</html>
