@@ -254,7 +254,6 @@
       <input type="number" id="coverage" step="1" placeholder="法定建ぺい 60">
       <input type="number" id="far" step="1" placeholder="法定容積 200">
     </div>
-    <div class="esub-note">指定の数字（角地・防火の加算前）を入れてください。加算はツールが行います。</div>
   </div>
   <div class="form-group">
     <label>建ぺい率の緩和（法53条）</label>
@@ -772,7 +771,7 @@
         if (e.type === 'corner') return;
         const eg = edgeGeom(S.pts, i);
         if (e.type === 'neighbor' && S.adj.enabled) {
-          common.push({ eg: eg, base: S.adj.start, k: S.adj.slope, off: gaps[i], color: C_ADJ, cutDist: null });
+          common.push({ eg: eg, base: S.adj.start, k: S.adj.slope, off: gaps[i], color: C_ADJ, cutDist: null, ai: i });
         }
         const c = eg.nout.x * S.north.nx + eg.nout.z * S.north.nz;
         if (c > 0.001) {
@@ -819,7 +818,7 @@
           if (multi && r.width < wMax - GEPS && (inBand || dist(r, c.x, c.z) > tenOf(r) + GEPS)) { eff = Math.max(own, wMax + parkMax); relief = eff > own + GEPS; }
           if (relief) anyRelief = true;
           return {
-            eg: r.eg, base: S.levelEff(r.level), k: S.slope, off: eff + r.setback,
+            eg: r.eg, base: S.levelEff(r.level), k: S.slope, off: eff + r.setback, ri: r.i,
             color: relief ? C_WIDE : (r.i === 0 ? C_ROAD : C_ROAD2),
             cutDist: S.applyDist == null ? null : S.applyDist - (eff + r.setback)
           };
