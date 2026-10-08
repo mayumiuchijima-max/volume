@@ -1,0 +1,31 @@
+name: Deploy to Cloudflare Pages
+
+# main ブランチにファイルを上げる（コミットする）たびに、自動でCloudflare Pagesへ反映します
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # 公開するファイルだけを dist に集める（許可リスト方式）
+      # ルートに古い有料ファイルが残っていても、公開側には出ません
+      - name: Build dist
+        run: |
+          mkdir -p dist/paid
+          cp index.html guide.html terms.html volume_4road.html dist/
+          cp icon-*.png dist/
+          cp paid/volume_poly.html paid/volume_4road_sky.html paid/volume_poly_sky.html dist/paid/
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=skylive-volume-tool --branch=main
