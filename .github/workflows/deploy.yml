@@ -19,7 +19,7 @@ jobs:
       - name: Build dist
         run: |
           mkdir -p dist/paid
-          cp index.html guide.html terms.html volume_4road.html dist/
+          cp index.html guide.html terms.html privacy.html volume_4road.html dist/
           cp icon-*.png dist/
           cp paid/volume_poly.html paid/volume_4road_sky.html paid/volume_poly_sky.html dist/paid/
 
