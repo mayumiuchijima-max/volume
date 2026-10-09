@@ -520,7 +520,7 @@ function EXPORT_BANDS(pts, edges) {
     if (L < 1e-9) return;
     var nx = dz / L, nz = -dx / L;
     var quad = function (a, b, kind, label) {
-      out.push({ kind: kind, label: label, q: [
+      out.push({ kind: kind, label: label, level: e.level || 0, q: [
         { x: A.x + nx * a, z: A.z + nz * a }, { x: B.x + nx * a, z: B.z + nz * a },
         { x: B.x + nx * b, z: B.z + nz * b }, { x: A.x + nx * b, z: A.z + nz * b }] });
     };
@@ -803,8 +803,8 @@ function ELEV_DATA(X) {
     var su = X.site.map(V.u), s0 = Math.min.apply(null, su), s1 = Math.max.apply(null, su), lo = Math.min(umin, s0), hi = Math.max(umax, s1), ext = [];
     EXPORT_BANDS(X.site, X.edges || []).forEach(function (b) {
       var bu = b.q.map(V.u), b0 = Math.min.apply(null, bu), b1 = Math.max.apply(null, bu);
-      if (b0 < s0 - 1e-6) { ext.push({ kind: b.kind, near: s0, far: b0, w: s0 - b0, label: b.label }); lo = Math.min(lo, b0); }
-      if (b1 > s1 + 1e-6) { ext.push({ kind: b.kind, near: s1, far: b1, w: b1 - s1, label: b.label }); hi = Math.max(hi, b1); }
+      if (b0 < s0 - 1e-6) { ext.push({ kind: b.kind, near: s0, far: b0, w: s0 - b0, label: b.label, level: b.level || 0 }); lo = Math.min(lo, b0); }
+      if (b1 > s1 + 1e-6) { ext.push({ kind: b.kind, near: s1, far: b1, w: b1 - s1, label: b.label, level: b.level || 0 }); hi = Math.max(hi, b1); }
     });
     var HBtop = fl1 + X.floors.length * fh + ELEV_PAR(X, X.floors.length) + 2, sl = [], skipped = 0;
     if (X.S) {
@@ -852,17 +852,24 @@ function ELEV_RENDER() {
   var V = ELEV_DATA(X), H = X.fl1 + X.floors.length * X.floorH + ELEV_PAR(X, X.floors.length), lv = ELEV_LEVELS(X), HB = H + 2;
   var html = '<h3 class="elev-h">立面図（外形・階の線・敷地境界）</h3><div class="elev-grid">';
   V.forEach(function (v) {
-    var pad = 0.8, lab = 7, w = (v.hi - v.lo) + pad * 2 + lab, h = HB + pad * 2, x0 = v.lo - pad;
+    var pad = 0.8, lab = 7, dn = 0; v.ext.forEach(function (g) { dn = Math.max(dn, -(g.level || 0)); }); var w = (v.hi - v.lo) + pad * 2 + lab, h = HB + pad * 2 + dn + (dn > 0 ? 1.8 : 0), x0 = v.lo - pad;
     var PX = function (u) { return (u - x0).toFixed(3); }, PY = function (y) { return (HB + pad - y).toFixed(3); };
     var T = function (x, y, str, col, anc) { return '<text x="' + x + '" y="' + y + '" font-size="1.05" fill="' + col + '"' + (anc ? ' text-anchor="' + anc + '"' : '') + '>' + str + '</text>'; };
     var s = '<svg viewBox="0 0 ' + w.toFixed(2) + ' ' + h.toFixed(2) + '" xmlns="http://www.w3.org/2000/svg" style="width:' + Math.round(w * 9) + 'px;max-width:100%;height:auto;display:block;background:#fff">';
     v.ext.forEach(function (g) {
-      s += '<rect x="' + PX(Math.min(g.near, g.far)) + '" y="' + PY(0) + '" width="' + g.w.toFixed(3) + '" height="0.5" fill="' + (g.kind === 'PARK' ? '#bbf7d0' : '#cbd5e1') + '"/>';
+      var lvl = g.level || 0;
+      s += '<rect x="' + PX(Math.min(g.near, g.far)) + '" y="' + PY(lvl) + '" width="' + g.w.toFixed(3) + '" height="0.5" fill="' + (g.kind === 'PARK' ? '#bbf7d0' : '#cbd5e1') + '"/>';
+      if (Math.abs(lvl) > 1e-6) {
+        s += '<line x1="' + PX(g.near) + '" y1="' + PY(0) + '" x2="' + PX(g.near) + '" y2="' + PY(lvl) + '" stroke="#16a34a" stroke-width="0.12"/>';
+        s += '<line x1="' + PX(g.near) + '" y1="' + PY(lvl) + '" x2="' + PX(g.far) + '" y2="' + PY(lvl) + '" stroke="#64748b" stroke-width="0.12"/>';
+        s += T(PX((g.near + g.far) / 2), (parseFloat(PY(lvl)) + 1.5).toFixed(2), '道路面 ' + (lvl > 0 ? '+' : '') + lvl.toFixed(2), '#64748b', 'middle');
+      }
       s += '<line x1="' + PX(g.far) + '" y1="' + PY(0) + '" x2="' + PX(g.far) + '" y2="' + PY(HB) + '" stroke="#ea580c" stroke-width="0.07" stroke-dasharray="0.5,0.3"/>';
-      s += T(PX((g.near + g.far) / 2), (parseFloat(PY(0)) - 0.4).toFixed(2), g.kind === 'PARK' ? '公園等' : '道路', '#64748b', 'middle');
+      s += T(PX((g.near + g.far) / 2), (parseFloat(PY(lvl)) - 0.4).toFixed(2), g.kind === 'PARK' ? '公園等' : '道路', '#64748b', 'middle');
     });
     [v.s0, v.s1].forEach(function (u) { s += '<line x1="' + PX(u) + '" y1="' + PY(0) + '" x2="' + PX(u) + '" y2="' + PY(HB) + '" stroke="#2563eb" stroke-width="0.07" stroke-dasharray="0.6,0.3"/>'; });
-    s += '<line x1="0" y1="' + PY(0) + '" x2="' + (v.hi - v.lo + pad * 2).toFixed(2) + '" y2="' + PY(0) + '" stroke="#16a34a" stroke-width="0.12"/>';
+    var glx = 0, glw = (v.hi - v.lo + pad * 2), cuts = v.ext.filter(function (g) { return Math.abs(g.level || 0) > 1e-6; }).map(function (g) { return [Math.min(g.near, g.far) - x0, Math.max(g.near, g.far) - x0]; }).sort(function (p, q) { return p[0] - q[0]; });
+    cuts.concat([[glw, glw]]).forEach(function (c) { if (c[0] > glx + 1e-6) s += '<line x1="' + glx.toFixed(3) + '" y1="' + PY(0) + '" x2="' + c[0].toFixed(3) + '" y2="' + PY(0) + '" stroke="#16a34a" stroke-width="0.12"/>'; glx = Math.max(glx, c[1]); });
     s += T('0.1', (parseFloat(PY(0)) - 0.3).toFixed(2), 'GL', '#16a34a');
     var SC = { road: '#dc2626', adj: '#16a34a', north: '#7c3aed', height: '#0891b2' };
     v.slopes.forEach(function (g) { s += '<line x1="' + PX(g.a[0]) + '" y1="' + PY(g.a[1]) + '" x2="' + PX(g.b[0]) + '" y2="' + PY(g.b[1]) + '" stroke="' + SC[g.type] + '" stroke-width="0.1" stroke-dasharray="0.9,0.35"/>'; });
@@ -893,10 +900,11 @@ function exportElevDXF() {
   var enName = ['FRONT (from road side)', 'RIGHT side', 'REAR', 'LEFT side'];
   V.forEach(function (v, k) {
     var dx = ox - v.lo;
-    line('ELEV_GL', v.lo + dx - 1, 0, v.hi + dx + 1, 0);
+    var gx = v.lo + dx - 1;
+    v.ext.filter(function (g) { return Math.abs(g.level || 0) > 1e-6; }).map(function (g) { return [Math.min(g.near, g.far) + dx, Math.max(g.near, g.far) + dx]; }).sort(function (p, q) { return p[0] - q[0]; }).concat([[v.hi + dx + 1, v.hi + dx + 1]]).forEach(function (c) { if (c[0] > gx + 1e-6) line('ELEV_GL', gx, 0, c[0], 0); gx = Math.max(gx, c[1]); });
     text('ELEV_DIM', v.lo + dx - 1, 0.2, 0.5, 'GL +-0');
     [v.s0, v.s1].forEach(function (u) { line('ELEV_SITE', u + dx, 0, u + dx, HB); });
-    v.ext.forEach(function (g) { line('ELEV_ROAD', g.far + dx, 0, g.far + dx, HB); text('ELEV_ROAD', (g.near + g.far) / 2 + dx - 1, -1.2, 0.5, g.kind === 'PARK' ? 'PARK' : 'ROAD W=' + g.w.toFixed(1)); });
+    v.ext.forEach(function (g) { var lvl = g.level || 0; line('ELEV_ROAD', g.far + dx, Math.min(0, lvl), g.far + dx, HB); if (Math.abs(lvl) > 1e-6) { line('ELEV_GL', g.near + dx, 0, g.near + dx, lvl); line('ELEV_GL', g.near + dx, lvl, g.far + dx, lvl); text('ELEV_DIM', (g.near + g.far) / 2 + dx - 1.5, lvl + 0.3, 0.5, 'RL ' + (lvl > 0 ? '+' : '') + lvl.toFixed(2)); } text('ELEV_ROAD', (g.near + g.far) / 2 + dx - 1, Math.min(0, lvl) - 1.2, 0.5, g.kind === 'PARK' ? 'PARK' : 'ROAD W=' + g.w.toFixed(1)); });
     v.slopes.forEach(function (g) { line('SLOPE_' + g.type.toUpperCase(), g.a[0] + dx, g.a[1], g.b[0] + dx, g.b[1]); });
     v.segs.forEach(function (g) { line(g.t === 'out' ? 'ELEV_OUT' : 'ELEV_FLOOR', g.a[0] + dx, g.a[1], g.b[0] + dx, g.b[1]); });
     var xr = dx + v.hi + 1.2;
@@ -3087,7 +3095,7 @@ function exportElevDXF() {
         document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
         
         try {
-          const exE = function (side) { const e = extras.find(function (q) { return q.side === side; }); return e ? { road: true, width: e.width, park: e.park } : { road: false }; };
+          const exE = function (side) { const e = extras.find(function (q) { return q.side === side; }); return e ? { road: true, width: e.width, park: e.park, level: e.level || 0 } : { road: false }; };
           const exS = {
             pts: [{ x: -siteW / 2, z: 0 }, { x: siteW / 2, z: 0 }, { x: siteW / 2, z: siteD }, { x: -siteW / 2, z: siteD }],
             edges: [{ type: 'road', width: road, park: currentPark || 0, level: roadLevel, setback: setback }].concat(['right', 'rear', 'left'].map(function (side) {
@@ -3100,7 +3108,7 @@ function exportElevDXF() {
           };
           EXPORT_SET({
             site: [{ x: -siteW / 2, z: 0 }, { x: siteW / 2, z: 0 }, { x: siteW / 2, z: siteD }, { x: -siteW / 2, z: siteD }],
-            edges: [{ road: true, width: road, park: currentPark || 0 }, exE('right'), exE('rear'), exE('left')],
+            edges: [{ road: true, width: road, park: currentPark || 0, level: roadLevel || 0 }, exE('right'), exE('rear'), exE('left')],
             S: exS, gaps: [0, gapR, gapT, gapL],
             floors: floors.map(function (f) { return { floor: f.floor, area: f.area, polys: f.rects.map(ShadeLib.rectToPoly) }; }), fl1: fl1, floorH: floorH, parapet: PARAPET_H(), parFor: function (k) { return PARAPET_H(k); },
             siteArea: siteArea, total: actualTotalFloor, nvec: nvec,
