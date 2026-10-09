@@ -348,6 +348,8 @@
           <label>建物奥行 m<input type="number" id="bldgDepth" step="0.1" placeholder="空欄で最大"></label>
           <label>1階床高さ m<input type="number" id="fl1" step="0.1" value="0.5"></label>
           <label>階高 m<input type="number" id="floorHeight" step="0.1" value="3.0"></label>
+          <label>パラペット高さ m<input type="number" id="parapetH" step="0.1" min="0" value="0" placeholder="なし"></label>
+          <label class="par-inc"><input type="checkbox" id="parapetInc" checked style="width:auto;height:auto;margin:0 4px 0 0;vertical-align:middle">高さに算入</label>
         </div>
       </div>
 
@@ -437,6 +439,7 @@
       <div class="result-item">建ぺい率： <strong id="covRuleText"></strong></div>
       <div class="result-item">容積率： <strong id="farRuleText"></strong></div>
       <div class="result-item">絶対高さ制限： <strong id="absHeight"></strong></div>
+      <div class="result-item">建物の最高高さ： <strong id="topHeightText"></strong></div>
       <div class="result-item">北側斜線： <strong id="northRuleText"></strong></div>
       <div class="result-item">高度斜線： <strong id="heightRuleText"></strong></div>
       <div class="result-item">隣地斜線： <strong id="adjRuleText"></strong></div>
@@ -1048,7 +1051,7 @@
       return { tt: tt, lat: lat, diff: diff, planeH: hMeas + (diff >= 1 ? (diff - 1) / 2 : 0), t0: hk ? 9 : 8, t1: hk ? 15 : 16 };
     }
     function shadePrisms(floors, fl1, floorH) {
-      return floors.map(function (f) { return { lo: f.floor === 1 ? 0 : fl1 + (f.floor - 1) * floorH, hi: fl1 + f.floor * floorH, polys: f.polys }; });
+      return floors.map(function (f) { return { lo: f.floor === 1 ? 0 : fl1 + (f.floor - 1) * floorH, hi: fl1 + f.floor * floorH + PARAPET_H(), polys: f.polys }; });
     }
 
     // 階ごとに北側を後退させて、日影規制を満たす形にする
@@ -1155,7 +1158,7 @@
       const count = function (k) { let n = 0; for (let t = 0; t < NN; t++) n += keep[k][t]; return n; };
       const initCount = floors.map(function (_, k) { return count(k); });
       const lo = function (k) { return floors[k].floor === 1 ? 0 : fl1 + (floors[k].floor - 1) * floorH; };
-      const hi = function (k) { return fl1 + floors[k].floor * floorH; };
+      const hi = function (k) { return fl1 + floors[k].floor * floorH + PARAPET_H(); };
       // ブロックを行ごとにまとめて長方形にする
       const rectsOf = function (k) {
         const rows = [];
@@ -1320,7 +1323,7 @@
       const zkey = document.getElementById('zoning').value, kind = SHADE_PRESET[zkey] ? SHADE_PRESET[zkey].kind : null;
       let target = '', targetOut = false;
       if (kind === 'low') target = (top > 7 || floors.length >= 3) ? '対象建築物の規模（軒高7m超または地上3階建て以上）に当たる見込みです。' : '軒高7m以下かつ2階建て以下の見込みで、規模要件では対象外になる可能性があります。';
-      else if (kind === 'high') target = top > 10 ? '対象建築物の規模（高さ10m超）に当たる見込みです。' : '高さ10m以下の見込みで、規模要件では対象外になる可能性があります。';
+      else if (kind === 'high') target = (top + PARAPET_H()) > 10 ? '対象建築物の規模（高さ10m超）に当たる見込みです。' : '高さ10m以下の見込みで、規模要件では対象外になる可能性があります。';
       if (kind) targetOut = /対象外/.test(target);
       const ok = res.maxNear <= tt[0] + 1e-6 && res.maxFar <= tt[1] + 1e-6;
       const f1 = function (n) { return (Math.round(n * 10) / 10).toFixed(1); };
@@ -2241,7 +2244,7 @@
       compass3D.position.set(-siteW / 2 - 5, 0.5, -currentRoad - currentPark - 2);
       group.add(compass3D);
 
-      const H = fl1 + floorCount * floorH + 2.0;
+      const H = fl1 + floorCount * floorH + PARAPET_H() + 2.0;
       if (fitted || stairOn()) {
         // 日影で調整した形／階段状表示：各階を長方形の箱で積む
         currentFloors.forEach(function (f) {
@@ -2296,7 +2299,18 @@
           group.add(new THREE.Line(lg, lineHid));
         });
       });
-      addHeightRuler(group, siteW / 2 + 1.2, 0, currentFloors.map(function (f) { return { h: fl1 + f.floor * floorH }; }), H);
+      if (PARAPET_H() > 0) {
+        const pm = new THREE.LineBasicMaterial({ color: 0x0ea5e9 });
+        currentFloors.forEach(function (f) {
+          const y = fl1 + f.floor * floorH + PARAPET_H();
+          f.rects.forEach(function (r) {
+            const e = 0.05;
+            const pts = [new THREE.Vector3(r.x0 - e, y, r.z0 - e), new THREE.Vector3(r.x1 + e, y, r.z0 - e), new THREE.Vector3(r.x1 + e, y, r.z1 + e), new THREE.Vector3(r.x0 - e, y, r.z1 + e), new THREE.Vector3(r.x0 - e, y, r.z0 - e)];
+            group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), pm));
+          });
+        });
+      }
+      addHeightRuler(group, siteW / 2 + 1.2, 0, currentFloors.map(function (f) { return { h: fl1 + f.floor * floorH }; }).concat(PARAPET_H() > 0 ? [{ h: fl1 + currentFloors.length * floorH + PARAPET_H() }] : []), H);
 
       scene.add(group);
       updateClipPlanes();
@@ -2400,7 +2414,7 @@
       const floors = [];
       let remaining = o.maxTotalFloor;
       for (let f = 1; f <= (manual ? Math.floor(o.N) : 15); f++) {
-        const top = o.fl1 + f * o.floorH;
+        const top = o.fl1 + f * o.floorH + PARAPET_H();
         if (!manual && o.absHeight != null && top > o.absHeight + 1e-6) break;
         let r = (K && f >= K) ? up : low;
         let a = area(r);
@@ -2421,7 +2435,7 @@
     function skyBoxesOf(floors, fl1, floorH) {
       const boxes = [];
       floors.forEach(function (f) {
-        const lo = f.floor === 1 ? 0 : fl1 + (f.floor - 1) * floorH, hi = fl1 + f.floor * floorH;
+        const lo = f.floor === 1 ? 0 : fl1 + (f.floor - 1) * floorH, hi = fl1 + f.floor * floorH + PARAPET_H();
         f.rects.forEach(function (r) { boxes.push({ x0: r.x0, x1: r.x1, z0: r.z0, z1: r.z1, y0: lo, y1: hi }); });
       });
       return boxes;
@@ -2459,7 +2473,7 @@
       const imax = Math.floor((o.depth - 1) / o.step + 1e-9);
       for (let N = 15; N >= 1; N--) {
         if (best && N * o.A0 <= best.total + 1e-6) break;
-        if (o.absHeight != null && o.fl1 + N * o.floorH > o.absHeight + 1e-6) continue;
+        if (o.absHeight != null && o.fl1 + N * o.floorH + PARAPET_H() > o.absHeight + 1e-6) continue;
         const r0 = evalFn(N, 0, 0, true);
         if (r0 && r0.valid) { consider(N, 0, 0, r0); continue; }
         if (imax < 1) continue;
@@ -3009,7 +3023,7 @@
         let zcut = fp.z1;
 
         for (let f = 1; f <= 15 && remaining > 1; f++) {
-          const topH = fl1 + f * floorH;
+          const topH = fl1 + f * floorH + PARAPET_H();
           if (absHeight !== null && topH > absHeight + 1e-6) break;
           const h = judgeTop ? topH : fl1 + (f - 1) * floorH;
           let rects = floorRects(regions, h);
@@ -3201,6 +3215,10 @@
         document.getElementById('applyDistText').textContent = currentApplyDist != null ? (currentApplyDist + 'm（前面道路の反対側の境界から。法定容積率 ' + farLegal + '%）') : '用途地域が未選択のため、距離の制限なし';
         document.getElementById('heightLimit').textContent = ((road + currentPark + setback) * slope).toFixed(2);
         document.getElementById('absHeight').textContent = absHeight !== null ? absHeight + ' m' : 'なし';
+        try {
+          const pH = parseFloat(document.getElementById('parapetH').value) || 0, pInc = document.getElementById('parapetInc').checked;
+          document.getElementById('topHeightText').textContent = (fl1 + floors.length * floorH + PARAPET_H()).toFixed(2) + ' m（1階床 ' + fl1 + 'm ＋ 階高 ' + floorH + 'm×' + floors.length + '階' + (pH > 0 ? ' ＋ パラペット ' + pH + 'm' + (pInc ? '（高さに算入）' : '（高さに算入しない）') : '') + '）';
+        } catch (e) { }
         document.getElementById('heightRuleText').textContent = heightLabel;
         document.getElementById('adjRuleText').textContent = z.adjStart != null ? (z.adjStart + 'm＋' + z.adjSlope + '／後退緩和：左 ' + gapL.toFixed(1) + 'm・右 ' + gapR.toFixed(1) + 'm・奥 ' + gapT.toFixed(1) + 'm ぶん境界を外側とみなす') : 'なし';
         document.getElementById('judgeText').textContent = judgeTop ? '各階の上端高さ' : '各階床高さ';
@@ -3237,6 +3255,16 @@
     ['skyN', 'skyK', 'skyB', 'skyCap', 'skyOn', 'skyUse_front', 'skyUse_left', 'skyUse_right', 'skyUse_rear', 'skyUse_adj', 'sky132'].forEach(function (id) { document.getElementById(id).addEventListener('input', function () { skyCustom = null; }); document.getElementById(id).addEventListener('change', function () { skyCustom = null; }); });
       window.__appLoaded = true;
   </script>
+<script>
+/* パラペット高さ（高さに算入する場合のみ、各階の上端に加える） */
+function PARAPET_H() {
+  var e = document.getElementById('parapetH'), c = document.getElementById('parapetInc');
+  var v = e ? parseFloat(e.value) : 0;
+  if (!isFinite(v) || v <= 0) return 0;
+  if (c && !c.checked) return 0;
+  return v;
+}
+</script>
 <div style="margin:28px 0 8px;padding-top:10px;border-top:1px solid #ddd;font-size:11px;color:#777;text-align:center;line-height:1.7">© 2026 株式会社スカイリブ環境計画　無断複製・転載・再配布を禁じます　<a href="../terms.html" style="color:#777">利用規約</a>　<a href="../privacy.html" style="color:#777">プライバシー</a></div>
 </body>
 </html>

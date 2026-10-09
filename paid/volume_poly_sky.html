@@ -380,6 +380,8 @@
       <label>建物の奥行 m<input type="number" id="bldgDepth" step="0.1" placeholder="空欄で最大"></label>
       <label>1階床高さ m<input type="number" id="fl1" step="0.1" value="0.5"></label>
       <label>階高 m<input type="number" id="floorHeight" step="0.1" value="3.0"></label>
+          <label>パラペット高さ m<input type="number" id="parapetH" step="0.1" min="0" value="0" placeholder="なし"></label>
+          <label class="par-inc"><input type="checkbox" id="parapetInc" checked style="width:auto;height:auto;margin:0 4px 0 0;vertical-align:middle">高さに算入</label>
     </div>
     <div class="hint">縦横を入れると、敷地の中に長方形の建物を置きます。図のオレンジの点をドラッグして多角形にもできます（辺の「＋」で点を追加、点を選んで削除、建物の中をドラッグで移動）。</div>
     <details class="shade" id="shadeBox">
@@ -442,6 +444,7 @@
       <div class="result-item">建ぺい率： <strong id="covRuleText"></strong></div>
       <div class="result-item">容積率： <strong id="farRuleText"></strong></div>
       <div class="result-item">絶対高さ制限： <strong id="absHeight"></strong></div>
+      <div class="result-item">建物の最高高さ： <strong id="topHeightText"></strong></div>
       <div class="result-item">北側斜線： <strong id="northRuleText"></strong></div>
       <div class="result-item">高度斜線： <strong id="heightRuleText"></strong></div>
       <div class="result-item">隣地斜線： <strong id="adjRuleText"></strong></div>
@@ -956,6 +959,15 @@
       }
       return poly;
     }
+
+/* パラペット高さ（高さに算入する場合のみ、各階の上端に加える） */
+function PARAPET_H() {
+  var e = document.getElementById('parapetH'), c = document.getElementById('parapetInc');
+  var v = e ? parseFloat(e.value) : 0;
+  if (!isFinite(v) || v <= 0) return 0;
+  if (c && !c.checked) return 0;
+  return v;
+}
 
     /* ================= 敷地の状態・図の編集 ================= */
     let poly = null;          // 敷地の頂点（反時計回り。P0=手前の左、P1=手前の右。前面道路の辺の中央が原点）
@@ -1666,12 +1678,12 @@
       compass3D.position.set(bb.x0 - 5, 0.5, -(front.width + (front.park || 0)) - 2);
       group.add(compass3D);
 
-      const H = fl1 + floors.length * floorH + 2.0;
+      const H = fl1 + floors.length * floorH + PARAPET_H() + 2.0;
       const pieces = skyStripPieces(makePieces(S, fpFinal, gaps));
       const farCut = floors.filter(function (f) { return f.farZ != null; })[0];
       const capFn = (capped || stairOn()) ? function (x, z) {
         let hh = 0;
-        floors.forEach(function (f) { const t = fl1 + f.floor * floorH; if (t > hh && f.polys.some(function (q) { return pointInPoly(x, z, q); })) hh = t; });
+        floors.forEach(function (f) { const t = fl1 + f.floor * floorH + PARAPET_H(); if (t > hh && f.polys.some(function (q) { return pointInPoly(x, z, q); })) hh = t; });
         return hh;
       } : (farCut ? function (x, z) {
         // 容積率でぎりぎりまで削った階：その階の奥側のカット位置より奥は、1つ下の階の高さまで
@@ -1693,8 +1705,18 @@
           group.add(new THREE.Line(lg, lineHid));
         });
       });
+      if (PARAPET_H() > 0) {
+        const pm = new THREE.LineBasicMaterial({ color: 0x0ea5e9 });
+        floors.forEach(function (f) {
+          const y = fl1 + f.floor * floorH + PARAPET_H() + 0.02;
+          f.polys.forEach(function (p) {
+            const pts = p.concat([p[0]]).map(function (q) { return new THREE.Vector3(q.x, y, q.z); });
+            group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), pm));
+          });
+        });
+      }
       const rx = Math.max.apply(null, S.pts.map(function (q) { return q.x; })) + 1.2;
-      addHeightRuler(group, rx, 0, floors.map(function (f) { return { h: fl1 + f.floor * floorH }; }), H);
+      addHeightRuler(group, rx, 0, floors.map(function (f) { return { h: fl1 + f.floor * floorH }; }).concat(PARAPET_H() > 0 ? [{ h: fl1 + floors.length * floorH + PARAPET_H() }] : []), H);
 
       if (currentSky) polySkyOverlay(currentSky);
       scene.add(group);
@@ -1978,7 +2000,7 @@
       return { tt: tt, lat: lat, diff: diff, planeH: hMeas + (diff >= 1 ? (diff - 1) / 2 : 0), t0: hk ? 9 : 8, t1: hk ? 15 : 16 };
     }
     function shadePrisms(floors, fl1, floorH) {
-      return floors.map(function (f) { return { lo: f.floor === 1 ? 0 : fl1 + (f.floor - 1) * floorH, hi: fl1 + f.floor * floorH, polys: f.polys }; });
+      return floors.map(function (f) { return { lo: f.floor === 1 ? 0 : fl1 + (f.floor - 1) * floorH, hi: fl1 + f.floor * floorH + PARAPET_H(), polys: f.polys }; });
     }
 
     // 階ごとに北側を後退させて、日影規制を満たす形にする
@@ -2085,7 +2107,7 @@
       const count = function (k) { let n = 0; for (let t = 0; t < NN; t++) n += keep[k][t]; return n; };
       const initCount = floors.map(function (_, k) { return count(k); });
       const lo = function (k) { return floors[k].floor === 1 ? 0 : fl1 + (floors[k].floor - 1) * floorH; };
-      const hi = function (k) { return fl1 + floors[k].floor * floorH; };
+      const hi = function (k) { return fl1 + floors[k].floor * floorH + PARAPET_H(); };
       // ブロックを行ごとにまとめて長方形にする
       const rectsOf = function (k) {
         const rows = [];
@@ -2250,7 +2272,7 @@
       const zkey = document.getElementById('zoning').value, kind = SHADE_PRESET[zkey] ? SHADE_PRESET[zkey].kind : null;
       let target = '', targetOut = false;
       if (kind === 'low') target = (top > 7 || floors.length >= 3) ? '対象建築物の規模（軒高7m超または地上3階建て以上）に当たる見込みです。' : '軒高7m以下かつ2階建て以下の見込みで、規模要件では対象外になる可能性があります。';
-      else if (kind === 'high') target = top > 10 ? '対象建築物の規模（高さ10m超）に当たる見込みです。' : '高さ10m以下の見込みで、規模要件では対象外になる可能性があります。';
+      else if (kind === 'high') target = (top + PARAPET_H()) > 10 ? '対象建築物の規模（高さ10m超）に当たる見込みです。' : '高さ10m以下の見込みで、規模要件では対象外になる可能性があります。';
       if (kind) targetOut = /対象外/.test(target);
       const ok = res.maxNear <= tt[0] + 1e-6 && res.maxFar <= tt[1] + 1e-6;
       const f1 = function (n) { return (Math.round(n * 10) / 10).toFixed(1); };
@@ -2451,7 +2473,7 @@
         let zcut = fpBB.z1;
 
         for (let f = 1; f <= 15 && remaining > 1; f++) {
-          const topH = fl1 + f * floorH;
+          const topH = fl1 + f * floorH + PARAPET_H();
           if (absHeight !== null && topH > absHeight + 1e-6) break;
           const h = judgeTop ? topH : fl1 + (f - 1) * floorH;
           let polys = floorPolys(pieces, h);
@@ -2556,6 +2578,10 @@
         document.getElementById('applyDistText').textContent = applyDist != null ? (applyDist + 'm（各道路の反対側の境界から。法定容積率 ' + farLegal + '%）') : '用途地域が未選択のため、距離の制限なし';
         document.getElementById('heightLimit').textContent = ((road + parkFront + setback) * slope).toFixed(2);
         document.getElementById('absHeight').textContent = absHeight !== null ? absHeight + ' m' : 'なし';
+        try {
+          const pH = parseFloat(document.getElementById('parapetH').value) || 0, pInc = document.getElementById('parapetInc').checked;
+          document.getElementById('topHeightText').textContent = (fl1 + floors.length * floorH + PARAPET_H()).toFixed(2) + ' m（1階床 ' + fl1 + 'm ＋ 階高 ' + floorH + 'm×' + floors.length + '階' + (pH > 0 ? ' ＋ パラペット ' + pH + 'm' + (pInc ? '（高さに算入）' : '（高さに算入しない）') : '') + '）';
+        } catch (e) { }
         document.getElementById('heightRuleText').textContent = heightLabel;
         document.getElementById('adjRuleText').textContent = z.adjStart != null ? (z.adjStart + 'm＋' + z.adjSlope + '／後退緩和：' + (gapsText || 'なし') + ' ぶん境界を外側とみなす') : 'なし';
         document.getElementById('judgeText').textContent = judgeTop ? '各階の上端高さ' : '各階床高さ';
@@ -2725,7 +2751,7 @@
       let remaining = E.maxTotalFloor, zcut = E.fpBB.z1;
       const zeros = E.tauZero, nF = st.T.length;
       for (let f = 1; f <= nF && remaining > 1; f++) {
-        const topH = E.fl1 + f * E.floorH;
+        const topH = E.fl1 + f * E.floorH + PARAPET_H();
         if (E.absHeight !== null && topH > E.absHeight + 1e-6) break;
         const h = E.judgeTop ? topH : E.fl1 + (f - 1) * E.floorH;
         const tv = st.T[f - 1] || zeros, rv = st.R ? (st.R[f - 1] || zeros) : zeros;
@@ -2798,13 +2824,13 @@
     function skyCheckAll(E, floors, quick, stop) {
       const out = [], bads = [];
       let ok = true, margin = Infinity;
-      const Hp = Math.max.apply(null, floors.map(function (f) { return E.fl1 + f.floor * E.floorH; }));
+      const Hp = Math.max.apply(null, floors.map(function (f) { return E.fl1 + f.floor * E.floorH + PARAPET_H(); }));
       const capH = E.capMode === 'slope' ? (E.absHeight != null ? E.absHeight : 1000) : Hp;
       for (let di = 0; di < E.defs.length; di++) {
         const d = E.defs[di], eg = edgeGeom(E.S.pts, d.i), loc = skyLoc(eg), e = E.S.edges[d.i];
         const plan = [], fit = [];
         floors.forEach(function (f) {
-          const y0 = f.floor === 1 ? 0 : E.fl1 + (f.floor - 1) * E.floorH, y1 = E.fl1 + f.floor * E.floorH;
+          const y0 = f.floor === 1 ? 0 : E.fl1 + (f.floor - 1) * E.floorH, y1 = E.fl1 + f.floor * E.floorH + PARAPET_H();
           f.raw.forEach(function (r) { if (skyPlaneOf(E, d, r.pi)) plan.push({ local: r.poly.map(function (q) { return loc.to(q.x, q.z); }), y0: y0, y1: y1 }); });
         });
         const fitW = [];
@@ -2977,7 +3003,7 @@
       if (!J) { skyRelax = null; return { none: true }; }
       const gv = function (id) { const v = parseFloat(skyById(id).value); return isFinite(v) ? v : null; };
       const zeroSt = function (n) { const st = { T: [], R: [] }; for (let f = 0; f < n; f++) { st.T.push(new Array(J).fill(0)); st.R.push(new Array(J).fill(0)); } return st; };
-      const sig = JSON.stringify([S.pts, edges, Env.fl1, Env.floorH, Env.maxTotalFloor, Env.maxBuildingArea, Env.absHeight, defs.map(function (d) { return d.kind + d.i; })]);
+      const sig = JSON.stringify([S.pts, edges, Env.fl1, Env.floorH, PARAPET_H(), Env.maxTotalFloor, Env.maxBuildingArea, Env.absHeight, defs.map(function (d) { return d.kind + d.i; })]);
       let fitNote = '', custom = false, st;
       const base = skyFloorsT(E, zeroSt(15));
       const baseTotal = base.floors.reduce(function (s, f) { return s + f.area; }, 0);
@@ -3012,7 +3038,7 @@
       const pc = function (v) { return (Math.round(v * 10000) / 100).toFixed(2) + '%'; };
       const used = skyUsed();
       const floors = R.floors, total = floors.reduce(function (s, f) { return s + f.area; }, 0);
-      const Hp = info.fl1 + floors.length * info.floorH;
+      const Hp = info.fl1 + floors.length * info.floorH + PARAPET_H();
       let h = '<div class="shadecard"><div class="shade-sum ' + (res.ok ? 'ok' : 'ng') + '">' + (R.adjOn ? '天空率（道路・隣地斜線）：' : '天空率（道路斜線）：') + (res.ok ? '全て適合' : 'NG（' + res.bads.join('・') + '）') + '</div>';
       let tauText = '';
       const nonzero = R.st.T.some(function (r) { return r.some(function (v) { return Math.abs(v) > 1e-9; }); }) || R.st.R.some(function (r) { return r.some(function (v) { return v > 1e-9; }); });
