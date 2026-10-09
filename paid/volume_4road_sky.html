@@ -435,7 +435,7 @@
 
   <div id="result">
     <button type="button" class="pdfbtn" onclick="window.print()">PDFで保存・印刷（ブラウザの印刷画面で「PDFに保存」を選択）</button>
-    <div class="expbar"><button type="button" onclick="exportDXF('overlay')">DXFで保存（重ね描き）</button><button type="button" onclick="exportDXF('sheet')">DXFで保存（階別に並べる）</button><button type="button" onclick="exportElevDXF()">DXFで保存（立面図）</button><button type="button" onclick="exportDXF3D()">3D DXFで保存（SketchUp等）</button><button type="button" onclick="exportSTL()">STLで保存（SketchUp無料版可）</button><button type="button" onclick="exportCSV()">CSVで保存</button></div>
+    <div class="expbar"><button type="button" onclick="exportDXF('overlay')">DXFで保存（重ね描き）</button><button type="button" onclick="exportDXF('sheet')">DXFで保存（階別に並べる）</button><button type="button" onclick="exportElevDXF()">DXFで保存（立面図）</button><button type="button" onclick="exportDXF3D()">3D DXFで保存</button><button type="button" onclick="exportCSV()">CSVで保存</button></div>
     <div class="summary" id="summary"></div>
     <div id="floorAreas"></div>
     <div class="plans" id="floorPlans"></div>
@@ -3480,35 +3480,6 @@ function EXP_TRI(pl) {
     if (idx.length === 3) res.push([idx[0], idx[1], idx[2]]);
     return res.map(function (t) { return [pl[t[0]], pl[t[1]], pl[t[2]]]; });
   };
-function exportSTL() {
-  if (exportNeedCalc()) return;
-  var X = __EXP, MM = 1000, fl1 = X.fl1 || 0, fh = X.floorH || 3, o = ['solid volume'];
-  var f3 = function (v) { return (v * MM).toFixed(1); };
-  var T = function (a, b, c) {
-    var ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
-    var nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, L = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
-    o.push('facet normal ' + (nx / L).toFixed(5) + ' ' + (ny / L).toFixed(5) + ' ' + (nz / L).toFixed(5), ' outer loop');
-    [a, b, c].forEach(function (p) { o.push('  vertex ' + f3(p[0]) + ' ' + f3(p[1]) + ' ' + f3(p[2])); });
-    o.push(' endloop', 'endfacet');
-  };
-  X.floors.forEach(function (f) {
-    var z0 = fl1 + (f.floor - 1) * fh, z1 = fl1 + f.floor * fh;
-    f.polys.forEach(function (pl0) {
-      if (pl0.length < 3) return;
-      var pl = EXP_AREA2(pl0) >= 0 ? pl0 : pl0.slice().reverse();
-      for (var k = 0; k < pl.length; k++) {
-        var p = pl[k], q = pl[(k + 1) % pl.length];
-        T([p.x, p.z, z0], [q.x, q.z, z0], [q.x, q.z, z1]); T([p.x, p.z, z0], [q.x, q.z, z1], [p.x, p.z, z1]);
-      }
-      EXP_TRI(pl).forEach(function (t) {
-        T([t[0].x, t[0].z, z1], [t[1].x, t[1].z, z1], [t[2].x, t[2].z, z1]);
-        T([t[0].x, t[0].z, z0], [t[2].x, t[2].z, z0], [t[1].x, t[1].z, z0]);
-      });
-    });
-  });
-  o.push('endsolid volume');
-  exportDownload('volume_3D_' + exportStamp() + '.stl', o.join('\n') + '\n', 'model/stl', false);
-}
 function exportDXF3D() {
   if (exportNeedCalc()) return;
   var X = __EXP, MM = 1000, out = [], layers = {}, COL = [1, 3, 5, 6, 30, 4, 2, 8, 9, 40];
