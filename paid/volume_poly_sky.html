@@ -221,6 +221,10 @@
     .shadebtn.sub { background: #fff; color: #1e3a8a; }
     @media print { .shade-fit .shadebtn { display: none !important; } }
     .shade-out { color: #b91c1c; font-weight: 700; font-size: 0.85rem; line-height: 1.5; background: #fef2f2; border: 1px solid #fca5a5; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+    .savebar { display: flex; gap: 6px; margin-top: 8px; }
+    .savebar button { flex: 1; padding: 8px 6px; font-size: 0.82rem; background: #fff; color: #1e3a8a; border: 1px solid #93c5fd; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .savebar button:hover { background: #eff6ff; }
+    @media print { .savebar, #caseMsg { display: none !important; } }
   </style>
 </head>
 <body>
@@ -234,6 +238,8 @@
     <label>物件名 / 所在地（PDFに印字されます）</label>
     <input type="text" id="projName" placeholder="物件名">
     <input type="text" id="projAddr" placeholder="所在地" style="margin-top:6px">
+    <div class="savebar"><button type="button" onclick="saveCase()">案件を保存</button><button type="button" onclick="document.getElementById('caseFile').click()">案件を読み込む</button><input type="file" id="caseFile" accept=".json,application/json" style="display:none"></div>
+    <div class="hint" id="caseMsg" style="text-align:left"></div>
   </div>
 
   <div class="form-group">
@@ -3547,6 +3553,69 @@ function exportElevDXF() {
       window.addEventListener('resize', function () { if (poly) renderEditor(true); });
     })();
     renderAll();
+
+    /* ================= 案件の保存・読み込み（JSONファイル） ================= */
+    function caseMsg(t, bad) { var m = document.getElementById('caseMsg'); if (m) { m.textContent = t; m.style.color = bad ? '#b91c1c' : '#166534'; } }
+    function saveCase() {
+      var fields = {};
+      document.querySelectorAll('input[id],select[id],textarea[id]').forEach(function (el) {
+        if (el.type === 'file' || el.type === 'button') return;
+        fields[el.id] = el.type === 'checkbox' ? el.checked : el.value;
+      });
+      var data = {
+        format: 'skylive-volume', kind: 'poly', version: 1, saved: new Date().toISOString(),
+        fields: fields,
+        state: {
+          poly: poly, edges: edgesState, polyCustom: polyCustom, bldg: bldg, survOrigin: survOrigin, compassDeg: compassDeg,
+          skyUse: (typeof skyUseState !== 'undefined') ? skyUseState : null
+        }
+      };
+      var nm = (fields.projName || '').replace(/[\\\/:*?"<>|\s]+/g, '_').slice(0, 40) || 'volume';
+      exportDownload(nm + '_' + exportStamp() + '.volume.json', JSON.stringify(data, null, 1), 'application/json', false);
+      caseMsg('保存しました（ダウンロードされたファイルを大切に保管してください）。');
+    }
+    function loadCaseData(data) {
+      if (!data || data.format !== 'skylive-volume' || !data.state || !data.fields) throw new Error('このファイルは、本ツールの案件ファイルではありません。');
+      var F = data.fields, S = data.state, el;
+      if (F.zoning !== undefined) { el = document.getElementById('zoning'); if (el) { el.value = F.zoning; if (typeof applyZoning === 'function') applyZoning(); } }
+      Object.keys(F).forEach(function (id) {
+        if (id === 'zoning') return;
+        var e = document.getElementById(id);
+        if (!e || e.type === 'file') return;
+        if (e.type === 'checkbox') e.checked = !!F[id]; else e.value = F[id];
+      });
+      var num = function (v) { return (typeof v === 'number' && isFinite(v)) ? v : NaN; };
+      poly = Array.isArray(S.poly) ? S.poly.map(function (p) { return { x: +p.x, z: +p.z }; }) : null;
+      edgesState = (S.edges || []).map(function (e) { return { type: e.type, width: num(e.width), level: isFinite(e.level) ? e.level : 0, park: isFinite(e.park) ? e.park : 0, setback: isFinite(e.setback) ? e.setback : 0 }; });
+      polyCustom = !!S.polyCustom;
+      bldg = Array.isArray(S.bldg) ? S.bldg.map(function (p) { return { x: +p.x, z: +p.z }; }) : null;
+      survOrigin = S.survOrigin || null;
+      selVertex = -1; selB = -1; view = null;
+      if (S.skyUse && typeof skyUseState !== 'undefined') { Object.keys(skyUseState).forEach(function (k) { delete skyUseState[k]; }); Object.keys(S.skyUse).forEach(function (k) { skyUseState[k] = S.skyUse[k]; }); }
+      if (typeof skyCustom !== 'undefined') skyCustom = null;
+      if (isFinite(S.compassDeg)) setCompass(S.compassDeg);
+      renderAll();
+      if (typeof HEIGHT_CUSTOM_TOGGLE === 'function') HEIGHT_CUSTOM_TOGGLE();
+      if (typeof BLDG_ALIGN_TOGGLE === 'function') BLDG_ALIGN_TOGGLE();
+    }
+    (function () {
+      var f = document.getElementById('caseFile');
+      if (!f) return;
+      f.addEventListener('change', function () {
+        var file = f.files && f.files[0]; if (!file) return;
+        var rd = new FileReader();
+        rd.onload = function () {
+          try {
+            if (poly && polyCustom && !confirm('いまの入力を、読み込む案件の内容で置き換えます。よろしいですか？')) { f.value = ''; return; }
+            loadCaseData(JSON.parse(rd.result));
+            caseMsg('「' + file.name + '」を読み込みました。計算し直しています。');
+            try { calculate(); } catch (e) { console.error(e); }
+          } catch (err) { caseMsg('読み込めませんでした：' + err.message, true); }
+          f.value = '';
+        };
+        rd.readAsText(file, 'utf-8');
+      });
+    })();
 
 window.__appLoaded = true;
 
