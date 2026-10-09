@@ -120,6 +120,11 @@
     .stairtog input { width: auto; margin: 0; }
     .stairtog { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; color: #1e3a8a; font-weight: 600; }
     .view3d-bar button { padding: 6px 10px; font-size: 0.78rem; border: 1px solid #1e3a8a; background: #fff; color: #1e3a8a; border-radius: 8px; cursor: pointer; }
+    .bldg-align select { width: 100%; font-size: 0.72rem; height: 26px; margin-top: 1px; box-sizing: border-box; color: #111; padding: 0 0 0 2px !important; }
+    .elev-h { font-size: 0.95rem; margin: 18px 0 6px; }
+    .elev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+    .elev { border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px; background: #fff; }
+    .elev .pt { font-size: 0.78rem; font-weight: 600; color: #1e3a8a; margin-bottom: 2px; }
     .expbar { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 10px; }
     .expbar button { flex: 1 1 140px; padding: 9px 6px; font-size: 0.82rem; background: #fff; color: #1e3a8a; border: 1px solid #93c5fd; border-radius: 8px; cursor: pointer; font-weight: 600; }
     .expbar button:hover { background: #eff6ff; }
@@ -381,6 +386,8 @@
     <div class="dim-row">
       <label>建物の左右幅 m<input type="number" id="bldgWidth" step="0.1" placeholder="空欄で最大"></label>
       <label>建物の奥行 m<input type="number" id="bldgDepth" step="0.1" placeholder="空欄で最大"></label>
+      <label class="bldg-align" data-for="bldgWidth" style="display:none">左右の位置<select id="bldgAlignX"><option value="left">左寄せ</option><option value="center">中央</option><option value="right">右寄せ</option></select></label>
+      <label class="bldg-align" data-for="bldgDepth" style="display:none">前後の位置（前＝道路側）<select id="bldgAlignZ"><option value="front">前寄せ</option><option value="center">中央</option><option value="rear">奥寄せ</option></select></label>
       <label>1階床高さ m<input type="number" id="fl1" step="0.1" value="0.5"></label>
       <label>階高 m<input type="number" id="floorHeight" step="0.1" value="3.0"></label>
           <label>パラペット高さ m<input type="number" id="parapetH" step="0.1" min="0" value="0" placeholder="なし"></label>
@@ -417,11 +424,12 @@
 
   <div id="result">
     <button type="button" class="pdfbtn" onclick="window.print()">PDFで保存・印刷（ブラウザの印刷画面で「PDFに保存」を選択）</button>
-    <div class="expbar"><button type="button" onclick="exportDXF('overlay')">DXFで保存（重ね描き）</button><button type="button" onclick="exportDXF('sheet')">DXFで保存（階別に並べる）</button><button type="button" onclick="exportCSV()">CSVで保存</button></div>
+    <div class="expbar"><button type="button" onclick="exportDXF('overlay')">DXFで保存（重ね描き）</button><button type="button" onclick="exportDXF('sheet')">DXFで保存（階別に並べる）</button><button type="button" onclick="exportElevDXF()">DXFで保存（立面図）</button><button type="button" onclick="exportCSV()">CSVで保存</button></div>
     <div class="summary" id="summary"></div>
     <div id="floorAreas"></div>
     <div class="plans" id="floorPlans"></div>
     <div id="shadeResult"></div>
+    <div id="elevations"></div>
     <div id="shadeResult"></div>
     <details class="rules">
       <summary>適用した規制の内容</summary>
@@ -976,7 +984,7 @@ window.addEventListener('load', HEIGHT_CUSTOM_TOGGLE);
 /*EXPORT_BEGIN*/
 /* ===== DXF / CSV 書き出し（計算のたびに EXPORT_SET で結果を受け取る） ===== */
 var __EXP = null;
-function EXPORT_SET(d) { __EXP = d; }
+function EXPORT_SET(d) { __EXP = d; try { ELEV_RENDER(); } catch (err) { console.error(err); } }
 function EXPORT_BANDS(pts, edges) {
   var out = [], n = pts.length;
   edges.forEach(function (e, i) {
@@ -1111,6 +1119,128 @@ function exportCSV() {
     f.polys.forEach(function (pl, k) { pl.forEach(function (p, i) { add([f.floor + 'F', k + 1, i + 1, p.x.toFixed(3), p.z.toFixed(3)]); }); });
   });
   exportDownload('volume_' + exportStamp() + '.csv', rows.join('\r\n') + '\r\n', 'text/csv;charset=utf-8', true);
+}
+/* 建物の幅・奥行を入れたときだけ「寄せ方」の選択を表示する */
+function BLDG_ALIGN_TOGGLE() {
+  document.querySelectorAll('.bldg-align').forEach(function (l) {
+    var src = document.getElementById(l.getAttribute('data-for')), v = src ? parseFloat(src.value) : 0;
+    l.style.display = v > 0 ? '' : 'none';
+  });
+}
+document.addEventListener('DOMContentLoaded', function () {
+  ['bldgWidth', 'bldgDepth'].forEach(function (id) { var el = document.getElementById(id); if (el) el.addEventListener('input', BLDG_ALIGN_TOGGLE); });
+  BLDG_ALIGN_TOGGLE();
+});
+/* ===== 立面図（各階の形を横から見た外形。4方向） ===== */
+function ELEV_DATA(X) {
+  var par = X.parapet || 0, fl1 = X.fl1, fh = X.floorH, R = function (v) { return Math.round(v * 1e6) / 1e6; };
+  var VIEWS = [
+    { name: '正面（前面道路側から）', u: function (p) { return p.x; } },
+    { name: '右側面（右から）', u: function (p) { return p.z; } },
+    { name: '背面（奥側から）', u: function (p) { return -p.x; } },
+    { name: '左側面（左から）', u: function (p) { return -p.z; } }
+  ];
+  var tops = X.floors.map(function (f) { return R(fl1 + f.floor * fh); });
+  return VIEWS.map(function (V) {
+    var fb = X.floors.map(function (f) {
+      var iv = f.polys.map(function (pl) { var us = pl.map(V.u); return [Math.min.apply(null, us), Math.max.apply(null, us)]; }).sort(function (a, b) { return a[0] - b[0]; });
+      var m = [];
+      iv.forEach(function (s) { if (m.length && s[0] <= m[m.length - 1][1] + 1e-6) m[m.length - 1][1] = Math.max(m[m.length - 1][1], s[1]); else m.push([s[0], s[1]]); });
+      return { floor: f.floor, iv: m, y0: f.floor === 1 ? 0 : R(fl1 + (f.floor - 1) * fh), y1: R(fl1 + f.floor * fh + par) };
+    });
+    var xs = [], ys = [0];
+    fb.forEach(function (f) { f.iv.forEach(function (s) { xs.push(R(s[0])); xs.push(R(s[1])); }); ys.push(f.y0); ys.push(f.y1); ys.push(R(f.y1 - par)); });
+    var uniq = function (a) { a.sort(function (p, q) { return p - q; }); return a.filter(function (v, i) { return i === 0 || v - a[i - 1] > 1e-6; }); };
+    xs = uniq(xs); ys = uniq(ys);
+    var nx = xs.length - 1, ny = ys.length - 1, fill = [];
+    for (var i = 0; i < nx; i++) {
+      fill.push([]);
+      for (var j = 0; j < ny; j++) {
+        var cx = (xs[i] + xs[i + 1]) / 2, cy = (ys[j] + ys[j + 1]) / 2, on = false;
+        fb.forEach(function (f) { if (cy > f.y0 && cy < f.y1) f.iv.forEach(function (s) { if (cx > s[0] && cx < s[1]) on = true; }); });
+        fill[i].push(on);
+      }
+    }
+    var isLevel = function (y) { return Math.abs(y) < 1e-6 || X.floors.some(function (f) { return Math.abs(y - (f.floor === 1 ? 0 : fl1 + (f.floor - 1) * fh)) < 1e-6 || Math.abs(y - (fl1 + f.floor * fh)) < 1e-6; }); };
+    var segs = [];
+    var F = function (i, j) { return i >= 0 && i < nx && j >= 0 && j < ny && fill[i][j]; };
+    var hs = {}, vs = {};
+    for (var j2 = 0; j2 <= ny; j2++) for (var i2 = 0; i2 < nx; i2++) {
+      var a = F(i2, j2 - 1), b = F(i2, j2), t = null;
+      if (a !== b) t = 'out'; else if (a && b && isLevel(ys[j2])) t = 'fl';
+      if (t) (hs[j2 + t] = hs[j2 + t] || { t: t, y: ys[j2], p: [] }).p.push([xs[i2], xs[i2 + 1]]);
+    }
+    for (var i3 = 0; i3 <= nx; i3++) for (var j3 = 0; j3 < ny; j3++) {
+      if (F(i3 - 1, j3) !== F(i3, j3)) (vs[i3] = vs[i3] || { x: xs[i3], p: [] }).p.push([ys[j3], ys[j3 + 1]]);
+    }
+    var mergeP = function (p) { var m = []; p.forEach(function (s) { if (m.length && Math.abs(s[0] - m[m.length - 1][1]) < 1e-6) m[m.length - 1][1] = s[1]; else m.push([s[0], s[1]]); }); return m; };
+    Object.keys(hs).forEach(function (k) { mergeP(hs[k].p).forEach(function (s) { segs.push({ t: hs[k].t, a: [s[0], hs[k].y], b: [s[1], hs[k].y] }); }); });
+    Object.keys(vs).forEach(function (k) { mergeP(vs[k].p).forEach(function (s) { segs.push({ t: 'out', a: [vs[k].x, s[0]], b: [vs[k].x, s[1]] }); }); });
+    var umin = xs.length ? xs[0] : 0, umax = xs.length ? xs[xs.length - 1] : 0;
+    return { name: V.name, segs: segs, umin: umin, umax: umax, top: ys[ys.length - 1] };
+  });
+}
+function ELEV_LEVELS(X) {
+  var L = [];
+  X.floors.forEach(function (f, i) {
+    var y = X.fl1 + (f.floor === 1 ? 0 : (f.floor - 1) * X.floorH);
+    L.push({ y: f.floor === 1 ? X.fl1 : y, s: f.floor + 'FL +' + (f.floor === 1 ? X.fl1 : y).toFixed(2) });
+  });
+  return L;
+}
+function ELEV_RENDER() {
+  var box = document.getElementById('elevations'); if (!box) return;
+  var X = __EXP;
+  if (!X || !X.floors || !X.floors.length) { box.innerHTML = ''; return; }
+  var V = ELEV_DATA(X), H = X.fl1 + X.floors.length * X.floorH + (X.parapet || 0), lv = ELEV_LEVELS(X);
+  var html = '<h3 class="elev-h">立面図（外形のみ・階ごとの線）</h3><div class="elev-grid">';
+  V.forEach(function (v) {
+    var pad = 1.2, w = (v.umax - v.umin) + pad * 2 + 4.2, h = H + pad * 2, x0 = v.umin - pad, sc = 1;
+    var PX = function (u) { return ((u - x0)).toFixed(3); }, PY = function (y) { return (H + pad - y).toFixed(3); };
+    var s = '<svg viewBox="0 0 ' + w.toFixed(2) + ' ' + (h + 0.6).toFixed(2) + '" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;background:#fff">';
+    s += '<line x1="0" y1="' + PY(0) + '" x2="' + (v.umax - v.umin + pad * 2).toFixed(2) + '" y2="' + PY(0) + '" stroke="#16a34a" stroke-width="0.09"/>';
+    s += '<text x="0.1" y="' + (parseFloat(PY(0)) - 0.25).toFixed(2) + '" font-size="0.85" fill="#16a34a">GL ±0</text>';
+    v.segs.forEach(function (g) {
+      s += '<line x1="' + PX(g.a[0]) + '" y1="' + PY(g.a[1]) + '" x2="' + PX(g.b[0]) + '" y2="' + PY(g.b[1]) + '" stroke="' + (g.t === 'out' ? '#1e293b' : '#94a3b8') + '" stroke-width="' + (g.t === 'out' ? 0.1 : 0.05) + '"/>';
+    });
+    var xr = v.umax - x0 + 0.8;
+    lv.forEach(function (l) { s += '<line x1="' + (xr - 0.4).toFixed(2) + '" y1="' + PY(l.y) + '" x2="' + xr.toFixed(2) + '" y2="' + PY(l.y) + '" stroke="#b91c1c" stroke-width="0.05"/><text x="' + (xr + 0.15).toFixed(2) + '" y="' + (parseFloat(PY(l.y)) + 0.3).toFixed(2) + '" font-size="0.85" fill="#b91c1c">' + l.s + '</text>'; });
+    s += '<text x="' + (xr + 0.15).toFixed(2) + '" y="' + (parseFloat(PY(H)) + 0.3).toFixed(2) + '" font-size="0.85" fill="#b91c1c">H=' + H.toFixed(2) + '</text></svg>';
+    html += '<div class="elev"><div class="pt">' + v.name + '</div>' + s + '</div>';
+  });
+  html += '</div>';
+  box.innerHTML = html;
+}
+function exportElevDXF() {
+  if (exportNeedCalc()) return;
+  var X = __EXP, MM = 1000, out = [], V = ELEV_DATA(X), lv = ELEV_LEVELS(X);
+  var P = function (c, v) { out.push(String(c)); out.push(String(v)); };
+  var line = function (ly, ax, ay, bx, by) { P(0, 'LINE'); P(8, ly); P(10, (ax * MM).toFixed(1)); P(20, (ay * MM).toFixed(1)); P(30, 0); P(11, (bx * MM).toFixed(1)); P(21, (by * MM).toFixed(1)); P(31, 0); };
+  var text = function (ly, x, y, h, s) { P(0, 'TEXT'); P(8, ly); P(10, (x * MM).toFixed(1)); P(20, (y * MM).toFixed(1)); P(30, 0); P(40, (h * MM).toFixed(1)); P(1, s); };
+  var H = X.fl1 + X.floors.length * X.floorH + (X.parapet || 0), ox = 0;
+  var enName = ['FRONT (from road side)', 'RIGHT side', 'REAR', 'LEFT side'];
+  V.forEach(function (v, k) {
+    var w = v.umax - v.umin, dx = ox - v.umin;
+    line('ELEV_GL', dx + v.umin - 1.5, 0, dx + v.umax + 1.5, 0);
+    text('ELEV_DIM', dx + v.umin - 1.5, 0.2, 0.5, 'GL +-0');
+    v.segs.forEach(function (g) { line(g.t === 'out' ? 'ELEV_OUT' : 'ELEV_FLOOR', g.a[0] + dx, g.a[1], g.b[0] + dx, g.b[1]); });
+    var xr = dx + v.umax + 1.2;
+    lv.forEach(function (l) { line('ELEV_DIM', xr - 0.5, l.y, xr + 0.5, l.y); text('ELEV_DIM', xr + 0.7, l.y - 0.2, 0.5, l.s); });
+    line('ELEV_DIM', xr - 0.5, H, xr + 0.5, H); text('ELEV_DIM', xr + 0.7, H - 0.2, 0.5, 'H=' + H.toFixed(2));
+    line('ELEV_DIM', xr, 0, xr, H);
+    text('TEXT', dx + v.umin, -1.8, 0.7, enName[k]);
+    ox += w + 12;
+  });
+  var head = [], Hh = function (c, v) { head.push(String(c)); head.push(String(v)); };
+  var layers = { ELEV_OUT: 7, ELEV_FLOOR: 8, ELEV_GL: 3, ELEV_DIM: 1, TEXT: 7 }, names = Object.keys(layers);
+  Hh(0, 'SECTION'); Hh(2, 'HEADER'); Hh(9, '$ACADVER'); Hh(1, 'AC1009'); Hh(0, 'ENDSEC');
+  Hh(0, 'SECTION'); Hh(2, 'TABLES');
+  Hh(0, 'TABLE'); Hh(2, 'LTYPE'); Hh(70, 1); Hh(0, 'LTYPE'); Hh(2, 'CONTINUOUS'); Hh(70, 0); Hh(3, 'Solid line'); Hh(72, 65); Hh(73, 0); Hh(40, 0.0); Hh(0, 'ENDTAB');
+  Hh(0, 'TABLE'); Hh(2, 'LAYER'); Hh(70, names.length);
+  names.forEach(function (n) { Hh(0, 'LAYER'); Hh(2, n); Hh(70, 0); Hh(62, layers[n]); Hh(6, 'CONTINUOUS'); });
+  Hh(0, 'ENDTAB'); Hh(0, 'ENDSEC'); Hh(0, 'SECTION'); Hh(2, 'ENTITIES');
+  var body = head.concat(out, ['0', 'ENDSEC', '0', 'EOF']).join('\r\n') + '\r\n';
+  exportDownload('volume_' + exportStamp() + '_elevation.dxf', body, 'application/dxf', false);
 }
 /*EXPORT_END*/
 
@@ -1340,7 +1470,7 @@ function exportCSV() {
       document.getElementById('btnDelV').addEventListener('click', delVertex);
       document.getElementById('btnBldgAuto').addEventListener('click', function () {
         bldg = null; selB = -1;
-        document.getElementById('bldgWidth').value = ''; document.getElementById('bldgDepth').value = '';
+        document.getElementById('bldgWidth').value = ''; document.getElementById('bldgDepth').value = ''; if (typeof BLDG_ALIGN_TOGGLE === 'function') BLDG_ALIGN_TOGGLE();
         renderEditor(true);
       });
       document.getElementById('btnRect').addEventListener('click', function () {
@@ -1482,15 +1612,30 @@ function exportCSV() {
       if (fp0.length < 3) { bldg = null; renderEditor(true); return; }
       const bb = polyBBox(fp0);
       const w = bW > 0 ? bW : bb.x1 - bb.x0, d = bD > 0 ? bD : bb.z1 - bb.z0;
-      let best = null;
+      const cand = [];
+      let amax = -1;
       const xMax = Math.max(bb.x0, bb.x1 - w), zMax = Math.max(bb.z0, bb.z1 - d);
       for (let z = bb.z0; z <= zMax + 1e-9; z += 0.25) {
         for (let x = bb.x0; x <= xMax + 1e-9; x += 0.1) {
           const rect = [{ x: x, z: z }, { x: x + w, z: z }, { x: x + w, z: z + d }, { x: x, z: z + d }];
           const a = absArea(clipByConvex(rect, fp0));
-          if (!best || a > best.a + 1e-6) best = { a: a, x: x, z: z };
+          cand.push({ a: a, x: x, z: z });
+          if (a > amax) amax = a;
         }
       }
+      // 面積が最大になる位置のうち、選んだ寄せ方（左・中央・右／前・中央・奥）に近いものを選ぶ
+      const alX = (document.getElementById('bldgAlignX') || {}).value || 'left', alZ = (document.getElementById('bldgAlignZ') || {}).value || 'front';
+      let set = cand.filter(function (c) { return c.a >= amax - 1e-6; });
+      const pick = function (arr, key, mode, lo, hi) {
+        const vs = arr.map(function (c) { return c[key]; });
+        const mn = Math.min.apply(null, vs), mx = Math.max.apply(null, vs);
+        const target = (mode === lo) ? mn : (mode === hi) ? mx : (mn + mx) / 2;
+        let bv = vs[0]; vs.forEach(function (v) { if (Math.abs(v - target) < Math.abs(bv - target) - 1e-9) bv = v; });
+        return arr.filter(function (c) { return Math.abs(c[key] - bv) < 1e-9; });
+      };
+      set = pick(set, 'x', alX, 'left', 'right');
+      set = pick(set, 'z', alZ, 'front', 'rear');
+      const best = set[0];
       const x = r2(best.x), z = r2(best.z);
       bldg = [{ x: x, z: z }, { x: r2(x + w), z: z }, { x: r2(x + w), z: r2(z + d) }, { x: x, z: r2(z + d) }];
       selB = -1; renderEditor(true);
@@ -2766,6 +2911,7 @@ function exportCSV() {
       });
       document.getElementById('road').addEventListener('input', function () { if (poly) renderEditor(true); });
       ['bldgWidth', 'bldgDepth'].forEach(function (id) { document.getElementById(id).addEventListener('change', placeBldgRect); });
+      ['bldgAlignX', 'bldgAlignZ'].forEach(function (id) { document.getElementById(id).addEventListener('change', placeBldgRect); });
       window.addEventListener('resize', function () { if (poly) renderEditor(true); });
     })();
     renderAll();

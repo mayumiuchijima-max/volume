@@ -15,41 +15,41 @@
     h1 { font-size: 1.35rem; margin: 0 0 4px; }
     .by { font-size: 0.78rem; color: var(--sub); margin-bottom: 18px; }
     .lead { font-size: 0.9rem; margin-bottom: 18px; }
-    .tool { display: flex; gap: 14px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; text-decoration: none; color: inherit; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .mx { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; }
+    .mx .ch { font-size: 0.78rem; font-weight: 600; text-align: center; background: #f1f5f9; border: 1px solid var(--line); border-radius: 8px; padding: 5px 4px; }
+    .mx .rh { grid-column: 1 / -1; font-size: 0.92rem; font-weight: 700; margin: 12px 0 -2px; }
+    .mx .rh small { font-weight: 400; color: var(--sub); font-size: 0.75rem; margin-left: 6px; }
+    .tool { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 10px; text-decoration: none; color: inherit; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
     .tool:active { background: #f8fafc; }
     .tool img { width: 64px; height: 64px; border-radius: 14px; flex: none; }
-    .tool b { display: block; font-size: 1.02rem; }
-    .tool span { display: block; font-size: 0.8rem; color: var(--sub); }
-    .tool.soon { opacity: .55; pointer-events: none; }
-    .tool span.tag { display: inline-block; font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: #e0f2fe; color: #075985; margin-left: 6px; vertical-align: middle; }
+    .tool b { display: block; font-size: 0.98rem; }
+    .tool span { display: block; font-size: 0.76rem; color: var(--sub); line-height: 1.5; }
+    .tool span.tag { display: inline-block; font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: #e0f2fe; color: #075985; margin: 3px 2px 0; vertical-align: middle; }
     .tool span.tag.free { background: #dcfce7; color: #166534; }
     .tool span.tag.paid { background: #fef3c7; color: #92400e; }
     .tool span.tag.soon { background: #f1f5f9; color: #475569; }
-    h2 { font-size: 1rem; margin: 26px 0 8px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.8rem; }
-    .grid div { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
-    .grid .h { font-weight: 600; background: #f1f5f9; }
     .btn { display: inline-block; margin-top: 6px; padding: 10px 16px; border-radius: 8px; background: #1e293b; color: #fff; text-decoration: none; font-size: 0.9rem; }
     .note { font-size: 0.75rem; color: var(--sub); margin-top: 22px; }
-    @media (prefers-color-scheme: dark) { :root { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --sub:#94a3b8; --line:#334155; } .tool:active { background:#273449; } .grid .h { background:#273449; } .btn { background:#e2e8f0; color:#0f172a; } }
+    @media (prefers-color-scheme: dark) { :root { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --sub:#94a3b8; --line:#334155; } .tool:active { background:#273449; } .mx .ch { background:#273449; } .btn { background:#e2e8f0; color:#0f172a; } }
   </style>
 </head>
 <body>
   <h1>簡易ボリューム検討ツール</h1>
   <div class="by">株式会社スカイリブ環境計画</div>
-  <p class="lead">敷地条件と法規制から、建てられるボリュームの目安を3Dで確認するツール群です。敷地の形と、天空率を使うかどうかで選びます。</p>
+  <p class="lead">敷地条件と法規制から、建てられるボリュームの目安を3Dで確認するツール群です。敷地の形（行）と、天空率を使うかどうか（列）で選びます。</p>
 
-  <a class="tool" href="volume_4road.html"><img src="icon-4road.png" alt=""><div><b>整形地版<span class="tag free">無料</span></b><span>四角い敷地。道路斜線・北側・高度・隣地斜線・日影を斜線どおりに検討</span></div></a>
-  <a class="tool" href="paid/volume_4road_sky.html"><img src="icon-4road-sky.png" alt=""><div><b>整形地版・天空率<span class="tag">β</span><span class="tag paid">招待制</span></b><span>四角い敷地。道路・隣地斜線を天空率で検討し、最大ボリュームを逆算</span></div></a>
-  <a class="tool" href="paid/volume_poly.html"><img src="icon-poly.png" alt=""><div><b>変形地版<span class="tag paid">招待制</span></b><span>多角形の敷地。座標入力にも対応。斜線どおりに検討</span></div></a>
-  <a class="tool" href="paid/volume_poly_sky.html"><img src="icon-poly-sky.png" alt=""><div><b>変形地版・天空率<span class="tag">β</span><span class="tag paid">招待制</span></b><span>多角形の敷地。道路・隣地斜線を天空率で検討し、最大ボリュームを逆算</span></div></a>
+  <div class="mx">
+    <div class="ch">斜線どおり（天空率なし）</div><div class="ch">天空率あり</div>
 
-  <h2>どれを使う？</h2>
-  <div class="grid">
-    <div class="h">敷地の形</div><div class="h">斜線の扱い</div>
-    <div>四角い（整形）</div><div>斜線どおり → 整形地版<br>天空率も使いたい → 整形地版・天空率</div>
-    <div>多角形（変形）</div><div>斜線どおり → 変形地版<br>天空率も使いたい → 変形地版・天空率</div>
+    <div class="rh">整形地<small>四角い敷地</small></div>
+    <a class="tool" href="volume_4road.html"><img src="icon-4road.png" alt=""><div><b>整形地版</b><span class="tag free">無料</span><span>道路・北側・高度・隣地斜線・日影を斜線どおりに検討</span></div></a>
+    <a class="tool" href="paid/volume_4road_sky.html"><img src="icon-4road-sky.png" alt=""><div><b>整形地版・天空率</b><span class="tag">β</span><span class="tag paid">招待制</span><span>道路・隣地斜線を天空率で検討し、最大ボリュームを逆算</span></div></a>
+
+    <div class="rh">変形地<small>多角形の敷地・座標入力にも対応</small></div>
+    <a class="tool" href="paid/volume_poly.html"><img src="icon-poly.png" alt=""><div><b>変形地版</b><span class="tag paid">招待制</span><span>道路・北側・高度・隣地斜線・日影を斜線どおりに検討</span></div></a>
+    <a class="tool" href="paid/volume_poly_sky.html"><img src="icon-poly-sky.png" alt=""><div><b>変形地版・天空率</b><span class="tag">β</span><span class="tag paid">招待制</span><span>道路・隣地斜線を天空率で検討し、最大ボリュームを逆算</span></div></a>
   </div>
+
   <p style="margin-top:14px"><a class="btn" href="guide.html">使い方ページ</a></p>
   <div class="note">「招待制」のツールは、当面の間、ご登録いただいた方のみご利用いただけます（Googleアカウントまたはメールコードでログイン）。詳しくは <a href="terms.html">利用規約</a> をご覧ください。</div>
   <div class="note">本ツールの結果は簡易的な目安です。実際の計画・申請では、法規制の適用や算定方法を、役所・審査機関で必ず確認してください。</div>
