@@ -15,11 +15,10 @@
     h1 { font-size: 1.35rem; margin: 0 0 4px; }
     .by { font-size: 0.78rem; color: var(--sub); margin-bottom: 18px; }
     .lead { font-size: 0.9rem; margin-bottom: 18px; }
-    .mx { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; }
+    .mx { display: grid; grid-template-columns: 30px 1fr 1fr; gap: 8px; margin-bottom: 6px; }
     .mx .ch { font-size: 0.78rem; font-weight: 600; text-align: center; background: #f1f5f9; border: 1px solid var(--line); border-radius: 8px; padding: 5px 4px; }
-    .mx .rh { grid-column: 1 / -1; font-size: 0.92rem; font-weight: 700; margin: 12px 0 -2px; }
-    .mx .rh small { font-weight: 400; color: var(--sub); font-size: 0.75rem; margin-left: 6px; }
-    .tool { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 10px; text-decoration: none; color: inherit; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .mx .rl { writing-mode: vertical-rl; display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 700; letter-spacing: 0.3em; background: #f1f5f9; border: 1px solid var(--line); border-radius: 8px; padding: 6px 0; }
+    .tool { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 8px; text-decoration: none; color: inherit; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
     .tool:active { background: #f8fafc; }
     .tool img { width: 64px; height: 64px; border-radius: 14px; flex: none; }
     .tool b { display: block; font-size: 0.98rem; }
@@ -30,7 +29,7 @@
     .tool span.tag.soon { background: #f1f5f9; color: #475569; }
     .btn { display: inline-block; margin-top: 6px; padding: 10px 16px; border-radius: 8px; background: #1e293b; color: #fff; text-decoration: none; font-size: 0.9rem; }
     .note { font-size: 0.75rem; color: var(--sub); margin-top: 22px; }
-    @media (prefers-color-scheme: dark) { :root { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --sub:#94a3b8; --line:#334155; } .tool:active { background:#273449; } .mx .ch { background:#273449; } .btn { background:#e2e8f0; color:#0f172a; } }
+    @media (prefers-color-scheme: dark) { :root { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --sub:#94a3b8; --line:#334155; } .tool:active { background:#273449; } .mx .ch, .mx .rl { background:#273449; } .btn { background:#e2e8f0; color:#0f172a; } }
   </style>
 </head>
 <body>
@@ -39,16 +38,17 @@
   <p class="lead">敷地条件と法規制から、建てられるボリュームの目安を3Dで確認するツール群です。敷地の形（行）と、天空率を使うかどうか（列）で選びます。</p>
 
   <div class="mx">
-    <div class="ch">斜線どおり（天空率なし）</div><div class="ch">天空率あり</div>
+    <div></div><div class="ch">天空率なし</div><div class="ch">天空率あり</div>
 
-    <div class="rh">整形地<small>四角い敷地</small></div>
+    <div class="rl">整形地</div>
     <a class="tool" href="volume_4road.html"><img src="icon-4road.png" alt=""><div><b>整形地版</b><span class="tag free">無料</span><span>道路・北側・高度・隣地斜線・日影を斜線どおりに検討</span></div></a>
     <a class="tool" href="paid/volume_4road_sky.html"><img src="icon-4road-sky.png" alt=""><div><b>整形地版・天空率</b><span class="tag">β</span><span class="tag paid">招待制</span><span>道路・隣地斜線を天空率で検討し、最大ボリュームを逆算</span></div></a>
 
-    <div class="rh">変形地<small>多角形の敷地・座標入力にも対応</small></div>
+    <div class="rl">変形地</div>
     <a class="tool" href="paid/volume_poly.html"><img src="icon-poly.png" alt=""><div><b>変形地版</b><span class="tag paid">招待制</span><span>道路・北側・高度・隣地斜線・日影を斜線どおりに検討</span></div></a>
     <a class="tool" href="paid/volume_poly_sky.html"><img src="icon-poly-sky.png" alt=""><div><b>変形地版・天空率</b><span class="tag">β</span><span class="tag paid">招待制</span><span>道路・隣地斜線を天空率で検討し、最大ボリュームを逆算</span></div></a>
   </div>
+  <p class="note" style="margin-top:8px">整形地＝四角い敷地、変形地＝多角形の敷地（座標入力にも対応）です。</p>
 
   <p style="margin-top:14px"><a class="btn" href="guide.html">使い方ページ</a></p>
   <div class="note">「招待制」のツールは、当面の間、ご登録いただいた方のみご利用いただけます（Googleアカウントまたはメールコードでログイン）。詳しくは <a href="terms.html">利用規約</a> をご覧ください。</div>
