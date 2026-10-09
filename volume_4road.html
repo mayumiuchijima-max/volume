@@ -3027,6 +3027,143 @@ function exportElevDXF() {
     document.getElementById('stairMode').addEventListener('change', function () { if (lastUpd3D) { try { lastUpd3D(); snap3D(); } catch (e) { console.error(e); } } });
       window.__appLoaded = true;
   </script>
+<script>
+/* ===== ガイドツアー（無料の整形地版）：ON/OFFを切り替えられる ===== */
+(function () {
+  var KEY = 'volTourOff', tour = null;
+  function getOff() { try { return localStorage.getItem(KEY) === '1'; } catch (e) { return false; } }
+  function setOff(v) { try { localStorage.setItem(KEY, v ? '1' : '0'); } catch (e) { } }
+  var $ = function (s) { return document.querySelector(s); };
+  var css = document.createElement('style');
+  css.textContent = '#tourHi{position:fixed;z-index:9998;border:3px solid #f59e0b;border-radius:10px;box-shadow:0 0 0 9999px rgba(15,23,42,.55);pointer-events:none;transition:all .2s;display:none}' +
+    '#tourBox{position:fixed;z-index:9999;left:50%;transform:translateX(-50%);bottom:10px;width:calc(100% - 20px);max-width:560px;background:#fff;color:#1e293b;border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.35);padding:12px 14px;box-sizing:border-box;font-size:.88rem;line-height:1.6;display:none}' +
+    '#tourBox b.tt{display:block;font-size:.95rem;margin-bottom:2px;color:#1e3a8a}' +
+    '#tourBox .tb{display:flex;gap:6px;margin-top:8px;align-items:center;flex-wrap:wrap}' +
+    '#tourBox button{padding:8px 12px;border-radius:8px;border:1px solid #93c5fd;background:#fff;color:#1e3a8a;font-size:.84rem;font-weight:600;cursor:pointer}' +
+    '#tourBox button.pri{background:#2563eb;border-color:#2563eb;color:#fff}' +
+    '#tourBox .cnt{margin-left:auto;font-size:.72rem;color:#64748b}' +
+    '#tourBox label.nv{display:block;font-size:.76rem;color:#475569;margin-top:6px}' +
+    '#tourBox .tmsg{color:#b91c1c;font-size:.8rem;margin-top:4px}' +
+    '#tourToggle{font-size:.76rem;padding:2px 9px;border-radius:999px;border:1px solid #93c5fd;background:#fff;color:#1e3a8a;cursor:pointer;margin-left:6px}' +
+    '#tourToggle.on{background:#2563eb;border-color:#2563eb;color:#fff}' +
+    '@media print{#tourHi,#tourBox,#tourToggle{display:none!important}}';
+  document.head.appendChild(css);
+  var STEPS = [
+    { t: '用途地域を選びます', d: '建ぺい率・容積率の目安や、斜線の種類が自動で入ります。', sel: ['#zoning'], up: 'group' },
+    { t: '敷地の大きさを入れます', d: '左右の幅と前後の奥行き（m）です。赤い欄は、必ず入力する欄です。', sel: ['#width', '#depth'] },
+    { t: '前面道路の幅員を入れます', d: '道路の幅（m）も必須です。ほかの辺も道路のときは、その辺の欄で追加できます。', sel: ['#road'] },
+    { t: '建物の条件（任意）', d: '建物の幅・奥行き、1階の床高さ、階高、パラペット、各辺の離れ寸法です。空欄のままなら、敷地いっぱいに建てる形で計算します。', sel: ['.bldg-box'] },
+    { t: '高度地区など（任意）', d: '高度地区や絶対高さがあるときだけ入れます。「手入力」を選ぶと、入力欄が出ます。', sel: ['#heightDistrict'], up: 'group' },
+    { t: '「計算する」を押します', d: '押すと、結果が出ます。この先のガイドも続きます。', sel: ['button.calc'], calc: true },
+    { t: '結果の数字', d: '延床面積・建築面積・建ぺい率・容積率・階数です。', sel: ['#summary'], res: true },
+    { t: '各階の平面図', d: '階ごとの建物の形です。', sel: ['#floorPlans'], res: true },
+    { t: '立面図', d: '4方向の立面図です。敷地境界や、斜線（点線）も入ります。', sel: ['#elevations'], res: true },
+    { t: '書き出し', d: 'PDF・DXF・CSVで保存できます。DXFはJw_cadやAutoCADで開けます。', sel: ['.pdfbtn', '.expbar'], res: true },
+    { t: '3Dで確認', d: '3Dのボリュームです。ドラッグで回して、いろいろな向きから見られます。', sel: ['#canvas-container'], res: true }
+  ];
+  function targets(st) {
+    var els = [];
+    st.sel.forEach(function (s) { var e = $(s); if (e) { if (st.up === 'group') e = e.closest('.form-group') || e; els.push(e); } });
+    return els;
+  }
+  function union(els) {
+    var l = 1e9, t = 1e9, r = -1e9, b = -1e9;
+    els.forEach(function (e) { var q = e.getBoundingClientRect(); l = Math.min(l, q.left); t = Math.min(t, q.top); r = Math.max(r, q.right); b = Math.max(b, q.bottom); });
+    return { l: l, t: t, r: r, b: b };
+  }
+  function resultShown() { var r = $('#result'); return r && r.style.display !== 'none' && document.querySelectorAll('#floorAreas tbody tr').length > 0; }
+  function ensure() {
+    if ($('#tourHi')) return;
+    var h = document.createElement('div'); h.id = 'tourHi'; document.body.appendChild(h);
+    var b = document.createElement('div'); b.id = 'tourBox'; document.body.appendChild(b);
+  }
+  function place() {
+    if (!tour) return;
+    var st = STEPS[tour.i], els = st ? targets(st) : [], hi = $('#tourHi');
+    if (!els.length) { hi.style.display = 'none'; return; }
+    var u = union(els), pad = 6;
+    hi.style.display = 'block';
+    hi.style.left = (u.l - pad) + 'px'; hi.style.top = (u.t - pad) + 'px';
+    hi.style.width = (u.r - u.l + pad * 2) + 'px'; hi.style.height = Math.min(u.b - u.t + pad * 2, window.innerHeight * 0.7) + 'px';
+  }
+  function show(i, msg) {
+    ensure();
+    while (i < STEPS.length && ((STEPS[i].res && !resultShown()) || !targets(STEPS[i]).length)) i++;
+    if (i >= STEPS.length) { finish(); return; }
+    tour.i = i;
+    var st = STEPS[i], box = $('#tourBox'), els = targets(st);
+    var u = union(els), top = u.t + window.pageYOffset - 70;
+    window.scrollTo(0, Math.max(0, top));
+    var total = STEPS.filter(function (s) { return !s.res || resultShown(); }).length;
+    box.innerHTML = '<b class="tt">' + st.t + '</b>' + st.d + (msg ? '<div class="tmsg">' + msg + '</div>' : '') +
+      '<div class="tb">' + (i > 0 ? '<button data-a="prev">戻る</button>' : '') +
+      '<button class="pri" data-a="next">' + (st.calc ? '計算して続ける' : (i === STEPS.length - 1 ? '終わる' : '次へ')) + '</button>' +
+      '<button data-a="close">とじる</button><span class="cnt">' + (i + 1) + ' / ' + total + '</span></div>';
+    box.style.display = 'block';
+    setTimeout(place, 60);
+  }
+  function finish() {
+    ensure(); var box = $('#tourBox'); $('#tourHi').style.display = 'none';
+    box.innerHTML = '<b class="tt">ガイドは以上です</b>使い方の詳しい説明は、ページ上の「使い方」にあります。<label class="nv"><input type="checkbox" id="tourNever" checked> 次回から、ガイドを自動では表示しない</label><div class="tb"><button class="pri" data-a="close">とじる</button></div>';
+    box.style.display = 'block';
+  }
+  function intro() {
+    ensure(); tour = { i: -1 };
+    $('#tourHi').style.display = 'none';
+    var box = $('#tourBox');
+    box.innerHTML = '<b class="tt">はじめての方へ：1分のガイドツアー</b>入力から結果の見方まで、順番にご案内します。<div class="tb"><button class="pri" data-a="start">ツアーを始める</button><button data-a="close">今回はスキップ</button></div><label class="nv"><input type="checkbox" id="tourNever"> 次回から、ガイドを自動では表示しない</label>';
+    box.style.display = 'block';
+  }
+  function close() {
+    var nv = $('#tourNever');
+    if (nv) { setOff(nv.checked); sync(); }
+    var b = $('#tourBox'), h = $('#tourHi'); if (b) b.style.display = 'none'; if (h) h.style.display = 'none';
+    tour = null;
+  }
+  function onClick(ev) {
+    var a = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-a');
+    if (!a || !tour) return;
+    if (a === 'start') show(0);
+    else if (a === 'close') close();
+    else if (a === 'prev') { var j = tour.i - 1; while (j > 0 && ((STEPS[j].res && !resultShown()) || !targets(STEPS[j]).length)) j--; show(Math.max(0, j)); }
+    else if (a === 'next') {
+      var st = STEPS[tour.i];
+      if (st.calc) {
+        try { calculate(); } catch (e) { console.error(e); }
+        setTimeout(function () {
+          if (resultShown()) show(tour.i + 1);
+          else show(tour.i, '結果が出ませんでした。赤い欄（未入力）を入れてから、もう一度押してください。');
+        }, 900);
+      } else show(tour.i + 1);
+    }
+  }
+  function sync() {
+    var b = $('#tourToggle'); if (!b) return;
+    var off = getOff(); b.textContent = 'ガイドツアー：' + (off ? 'OFF' : 'ON'); b.className = off ? '' : 'on';
+  }
+  function init() {
+    var top = $('.toplink');
+    if (top) {
+      var b = document.createElement('button'); b.type = 'button'; b.id = 'tourToggle';
+      b.title = 'ONにすると、開いたときにガイドが出ます。押すと、ガイドを始めます。';
+      b.addEventListener('click', function () {
+        if (getOff()) { setOff(false); sync(); intro(); } else { setOff(true); sync(); close(); }
+      });
+      top.appendChild(b);
+      var re = document.createElement('a'); re.href = '#'; re.textContent = 'ガイドをもう一度'; re.style.marginLeft = '10px';
+      re.addEventListener('click', function (e) { e.preventDefault(); intro(); });
+      top.appendChild(re);
+    }
+    sync();
+    document.addEventListener('click', onClick);
+    window.addEventListener('scroll', place, { passive: true });
+    window.addEventListener('resize', place);
+    if (!getOff()) setTimeout(intro, 600);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+
+</script>
 <div style="margin:28px 0 8px;padding-top:10px;border-top:1px solid #ddd;font-size:11px;color:#777;text-align:center;line-height:1.7">© 2026 株式会社スカイリブ環境計画　無断複製・転載・再配布を禁じます　<a href="terms.html" style="color:#777">利用規約</a>　<a href="privacy.html" style="color:#777">プライバシー</a></div>
 </body>
 </html>
